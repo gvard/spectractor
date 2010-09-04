@@ -7,22 +7,22 @@ data arrays.
 @author: Dmitry Nasonov
 '''
 
-import os, shutil
+import os, sys, shutil
 from struct import unpack, pack, calcsize, error as StructError
 import numpy as np
 
 try:
     import pyfits
 except ImportError, err:
-    print str(err), "PyFITS is required for read and write FITS files only",
-    print "in functions read_fits and write_fits."
+    print >> sys.stderr, str(err), "PyFITS is required for read and write FITS",
+    print >> sys.stderr, "files only in functions read_fits and write_fits."
     # Get it here: http://www.stsci.edu/resources/software_hardware/pyfits
 
 try:
     from scipy.interpolate import splrep, splev, InterpolatedUnivariateSpline
 except ImportError, err:
-    print str(err), "SciPy is required for spline fitting only",
-    print "in two functions: flat_order and interp_chain."
+    print >> sys.stderr, str(err), "SciPy is required for spline fitting only",
+    print >> sys.stderr, "in two functions: flat_order and interp_chain."
 
 
 def backuper(file_pth, verbose=False):
@@ -109,7 +109,7 @@ def write_bin(data, bin_pth, objname="", headlen=10, fmtdat='h', verbose=False):
         try:
             binf.write(pack(fmt_str, *data[i]))
         except StructError, err:
-            print "StructError in write_bin:", err
+            print >> sys.stderr, "StructError in write_bin:", err
             _coef = 2
             if fmtdat.isupper():
                 _coef = 1
@@ -119,7 +119,8 @@ def write_bin(data, bin_pth, objname="", headlen=10, fmtdat='h', verbose=False):
                     binf.write(pack(fmtdat, data[i][j]))
                 except StructError:
                     if verbose:
-                        print "Overflow for", i, j, "data:", data[i][j]
+                        print >> sys.stderr, "Overflow in", i, "order:",
+                        print >> sys.stderr, j, "value", data[i][j]
                     binf.write(pack(fmtdat, maxval))
     binf.close()
 
@@ -351,8 +352,8 @@ def flat_order(order, flatdots, s=None, k=3, intlev=0):
     try:
         tckp = splrep(xflat, yflat, s=s, k=k)
     except ValueError, err:
-        print "ValueError in flat_order:", err,
-        print "Maybe you should sort input arrays."
+        print >> sys.stderr, "ValueError in flat_order:", err,
+        print >> sys.stderr, "Maybe you should sort input arrays."
         raise SystemExit
     return order / splev(pixnums, tckp) + intlev
 
@@ -396,7 +397,7 @@ def get_line(lams, lam, Va=0, width=.9, off=0, cutedg=4, vscl=False,
         beg = max(np.where(lams>lam1)[0][0], cutedg)
         end = min(np.where(lams<lam2)[0][-1], len(lams)-cutedg)
     except IndexError, err:
-        print "IndexError in get_line:", err
+        print >> sys.stderr, "IndexError in get_line:", err
         return (), None, None
     lams = lams[beg:end] + vadlam
     if verbose:
@@ -421,7 +422,7 @@ class PrepareTfits:
         # Reshape structured numpy array:
         data = data.view(dtype).reshape(-1, dlen)
         lams, cha = data[:, 0], data[:, 1]
-        self.maxarr = max(cha)
+        self.maxarr = np.max(cha)
         # Split to non-zero chains
         self.split_tfits(cha, lams)
 
