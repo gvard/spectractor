@@ -602,7 +602,7 @@ class Walker:
     def __init__(self, args, exts="rv|ew|100|fds", namrxp=".*", verbose=False):
         self.files_dct = {}
         self.workdirs = []
-        self.path_lst = []
+        self.path_set, self.spath_set = set(), set()
         self.verbose = verbose
         # rexp_main contains 3 groups: night number, spectrum number and flag.
         self.rexp_main = "^[a-z_]{0,3}(\d{3})(\d{1,3})[-_]?([a-z_\-]*).*\."
@@ -675,21 +675,20 @@ class Walker:
             files = self.files_dct[ext]
         except KeyError:
             print >> sys.stderr, "Sorry,", ext, "files seem not to exist."
-            return self.path_lst
+            return self.path_set
         rexp = re.compile(self.rexp_main + ext + '$', re.I | re.U)
         for path in files:
             night, flag = rexper(rexp, path, reflag=reflag, splitnig=splitnig)
             # Collect "kosher" paths:
             if filtr in ("all", None) or flag in filtr:
-                self.path_lst.append((night, flag, path))
+                self.path_set.add((night, flag, path))
             elif self.verbose:
                 print "Exclude", night, path
-        if not len(self.path_lst):
+        if not len(self.path_set):
             print >> sys.stderr, "No", ext, "files in path!"
-        return self.path_lst
+        return self.path_set
 
-    def select_spectra(self, journal, ext='200', iflag='sm', rvcorr_dct=None,
-                splitnig=False):
+    def select_spectra(self, journal, ext='200', iflag='sm', splitnig=False):
         """Select data, get ID ('night') and flag from filename, collect paths.
         Here we assume, that file name contains information about ID
         (night number, number of spectrum) and flag. Others will be broken
@@ -701,8 +700,6 @@ class Walker:
                 wavelengths, S/N etc) as values.
         @param ext: select file type, must be file extension.
         @param iflag: Flags to select. Can be a string, if flag is one symbol.
-        @param rvcorr_dct: Dictionary of heliocentric velocity corrections,
-                defined, for example, by telluric lines measurements.
         @param splitnig: split 'night' to tuple of night and spectrum number.
         @return: list of tuples with ID ('night'), flag, path to file and
                 other parameters. Currently parameters are fds path, dictionary
@@ -713,7 +710,7 @@ class Walker:
             files = self.files_dct[ext]
         except KeyError:
             print >> sys.stderr, "Sorry,", ext, "files seem not to exist."
-            return self.path_lst
+            return self.spath_set
         rexp = re.compile(self.rexp_main + ext + '$', re.I | re.U)
         for path in files:
             night, flag = rexper(rexp, path, reflag=False, splitnig=splitnig)
@@ -726,7 +723,8 @@ class Walker:
             else:
                 continue
             if os.path.isfile(os.path.splitext(path)[0]+'.ccm.txt'):
-                polys = read_ccmtxt(os.path.splitext(path)[0]+'.ccm.txt')
+                #polys = read_ccmtxt(os.path.splitext(path)[0]+'.ccm.txt')
+                pls_pth = os.path.splitext(path)[0]+'.ccm.txt'
             else:
                 if self.verbose:
                     print "Exclude", path, "with no ccm.txt"
@@ -734,9 +732,7 @@ class Walker:
             #night = int(str(spe[0][0]) + str(spe[0][1]).zfill(3))
             fds_pth = os.path.join(os.path.dirname(path),
                         str(night)[:3]+str(fdsnum).zfill(3)+'.fds')
-            if rvcorr_dct and night in rvcorr_dct:
-                Vr += rvcorr_dct[night]
             if self.verbose:
                 print "Append", night, "with corr", Vr
-            self.path_lst.append((night, flag, path, fds_pth, polys, Vr, sn))
-        return self.path_lst
+            self.spath_set.add((night, flag, path, fds_pth, pls_pth, Vr, sn))
+        return self.spath_set
