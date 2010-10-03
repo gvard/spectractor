@@ -237,7 +237,7 @@ def read_fds(fds_pth, ord_num, ord_len):
     fmt_str = 'i' * ord_len * ord_num
     data = unpack(fmt_str, fds.read(4*ord_len*ord_num))
     fds.close()
-    data = np.reshape(np.array(data) / 10000., (ord_len, ord_num))
+    data = np.reshape(np.array(data) / 10000., (ord_num, ord_len))
     return data
 
 
