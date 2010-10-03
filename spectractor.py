@@ -405,7 +405,9 @@ def get_line(lams, lam, Va=0, width=.9, off=0, cutedg=4, vscl=False,
     """
     _C = 299792.5
     vadlam = (Va * lam) / _C
-    lam1, lam2 = (lam + vadlam - width - off, lam + vadlam + width - off)
+    if vadlam:
+        lams += vadlam
+    lam1, lam2 = lam - width - off, lam + width - off
     # Get the slice of lams!
     try:
         beg = max(np.where(lams>lam1)[0][0], cutedg)
@@ -413,7 +415,7 @@ def get_line(lams, lam, Va=0, width=.9, off=0, cutedg=4, vscl=False,
     except IndexError, err:
         print >> sys.stderr, "IndexError in get_line:", err
         return (), None, None
-    lams = lams[beg:end] + vadlam
+    lams = lams[beg:end]
     if verbose:
         print "Get line. delta lam:", round(vadlam, 3),
         print "l1, l2:", round(lam1, 3), round(lam2, 3),
