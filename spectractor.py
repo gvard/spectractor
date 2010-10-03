@@ -69,7 +69,7 @@ def read_bin(bin_pth, headlen=10, fmtdat='h', npuse=False, verbose=False):
     bindat = open(bin_pth, 'rb')
     objname = bindat.read(headlen)
     ord_num, ord_len = unpack('HH', bindat.read(4))
-    fmt_str = "".join([fmtdat for _ in xrange(ord_len)])
+    fmt_str = fmtdat * ord_len
     bsize = calcsize(fmtdat)
     if verbose:
         print "binary file header:", objname, ord_num, ord_len
@@ -221,7 +221,7 @@ def get_fits_card(fts_pth, cardnam="OBJ"):
         return
 
 
-def read_fds(fds_pth, ord_num, ord_len, npuse=True):
+def read_fds(fds_pth, ord_num, ord_len):
     """Read .fds file with array of wavelengths.
     For reading fds we must know about data shape of reference spectrum:
     number of orders and length of one order. Output data is an array of
@@ -231,19 +231,13 @@ def read_fds(fds_pth, ord_num, ord_len, npuse=True):
     @type ord_num: unsigned int
     @param ord_len: length of order.
     @type ord_len: unsigned int
-    @param npuse: set output data format as np.array, list otherwise.
-    @return: array of float wavelengths, list of np.arrays or 2D numpy.array.
+    @return: numpy array of float wavelengths.
     """
     fds = open(fds_pth, 'rb')
-    fmt_str = 'i' * ord_len
-    if npuse:
-        data = np.zeros((ord_num, ord_len), float)
-    else:
-        data = [[] for _ in xrange(ord_num)]
-    for i in xrange(ord_num):
-        data[i] = np.array(unpack(fmt_str, fds.read(4*ord_len))) / 10000.
-        #data[i].append(np.array(unpack(fmt_str, fds.read(4*ord_len))) / 10000.)
+    fmt_str = 'i' * ord_len * ord_num
+    data = unpack(fmt_str, fds.read(4*ord_len*ord_num))
     fds.close()
+    data = np.reshape(np.array(data) / 10000., (ord_len, ord_num))
     return data
 
 
@@ -276,11 +270,11 @@ def write_fds(data, fds_pth, verbose=False):
         data = [data, ]
     if verbose:
         print "Write fds. data.shape:", ord_num, ord_len
-    fmtstr = 'i' * ord_len
+    arr = np.around(np.array(data)*10000).astype(int).reshape(-1)
+    fmtstr = 'i' * ord_len * ord_num
     backuper(fds_pth)
     fds = open(fds_pth, 'wb')
-    for i in xrange(ord_num):
-        fds.write(pack(fmtstr, *np.around(np.array(data[i])*10000).astype(int)))
+    fds.write(pack(fmtstr, *arr))
     fds.close()
 
 
