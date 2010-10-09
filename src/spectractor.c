@@ -82,11 +82,50 @@ write_bin(PyObject *self, PyObject *args)
 }
 
 
+static PyObject *
+read_fds(PyObject *self, PyObject *args)
+{
+    const char *binfile;
+    const unsigned short nx, ny;
+    FILE *ffil;
+    unsigned short i, j;
+    PyArrayObject *py_bin;
+    npy_intp dims[2];
+    double leng;
+    double *dat;
+    unsigned int iwl;
+
+    if(!PyArg_ParseTuple(args, "sHH", &binfile, &nx, &ny))
+        return NULL;
+
+    dims[0] = nx;
+    dims[1] = ny;
+
+    if ((ffil = fopen(binfile, "r")) == NULL){
+        printf("Error for open file %s\n", binfile);
+        return NULL;
+    }
+    py_bin = (PyArrayObject *) PyArray_SimpleNew(2, dims, NPY_DOUBLE);
+    dat = (double *)PyArray_DATA(py_bin);
+    for (i=0; i < ny; i++){
+        for (j=0; j < nx; j++){
+            fread(&iwl, sizeof(int), 1, ffil);
+            leng = (double) iwl;
+            dat[i*nx+j] = leng/10000;
+        }
+    }
+    fclose(ffil);
+    return PyArray_Return(py_bin);
+}
+
+
 static PyMethodDef SpectractorMethods[] = {
     {"write_fds", write_fds, METH_VARARGS,
         "Create fds file from numpy array of floats."},
     {"write_bin", write_bin, METH_VARARGS,
         "Create bin file from numpy array of floats."},
+    {"read_fds", read_fds, METH_VARARGS,
+        "Read fds file to numpy array."},
     {NULL, NULL, 0, NULL}
 };
 
