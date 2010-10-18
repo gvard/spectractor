@@ -320,9 +320,9 @@ def take_orders(data, fds, lam, polypt, edglim=5, ish=0, wcut=.5, olim=2):
     Here we assume that orders are sorted by wavelength.
     @param data: data as 2D array.
     @param fds: dispersion curve as 2D array of wavelengths.
-    @param lam: wavelength, prabably containing in fds' wavelength range.
+    @param lam: wavelength, probably containing in fds' wavelength range.
     @param polypt: dictionary with points for flatten polynome plotting.
-    @param edglim: index for breaking points at the edge.
+    @param edglim: index for breaking points at the edges.
     @param ish: intensity shift for flatted order.
     @param wcut: wavelength shift in angstroms: break order with
             'incomplete' line with wcut<0 or take it otherwise).
@@ -346,19 +346,19 @@ def take_orders(data, fds, lam, polypt, edglim=5, ish=0, wcut=.5, olim=2):
 def flat_order(order, flatdots, s=None, k=3, intlev=0):
     """Make interpolation of given order by spline based on given points.
     This is wrapper function for SciPy spline interpolation. Description
-    of s and k parameters are from docstrongs of scypy.interpolate.splrep.
+    of s and k parameters are from docstrings of scipy.interpolate.splrep.
     @param order: 1D array of int data.
     @param flatdots: points for plot flat spline.
-    @type flatdots: tuple/list of [dotsx], [dotsy]
+    @type flatdots: tuple or list of [dotsx], [dotsy]
     @param k: The order of the spline fit. It is recommended to use cubic
-    splines; 1 <= k <= 5.
+            splines; 1 <= k <= 5.
     @param s: A smoothing condition. The amount of smoothness is determined by
     satisfying the conditions: sum((w * (y - g))**2,axis=0) <= s where g(x) is
     the smoothed interpolation of (x, y). Larger s means more smoothing while
     smaller values of s indicate less smoothing. Recommended values of s depend
     on the weights, w. default: s=m-sqrt(2*m) if weights are supplied.
     @param intlev: Intensity shift for flatted order. By default
-                   0 <= output_data <= 1.
+            0 <= output_data <= 1.
     @return: normalized order.
     """
     pixnums = np.arange(1, len(order)+1, 1)
@@ -375,7 +375,7 @@ def flat_order(order, flatdots, s=None, k=3, intlev=0):
 def interp_chain(lams, dats, mf=5, k=1):
     """Interpolate chain with multiply factor mf.
     @param f: Multiply factor. length of output arrays is calculated as
-            length of input arrays multiplyed by mf.
+            length of input arrays multiplied by mf.
     @param k: spline degree.
     @return interpolated input arrays.
     """
@@ -400,7 +400,7 @@ def get_line(lams, lam, Va=0, width=.9, off=0, cutedg=4, vscl=False,
     @param cutedg: drop given number of pixels on edges of the order.
     @param vscl: scale mode. If True, transform wavelength scale to radial
                  velocities scale.
-    @return: array of wavelengths or velocities, start and end indicies
+    @return: array of wavelengths or velocities, start and end indices
             of input array' slice.
     """
     _C = 299792.5
@@ -419,7 +419,7 @@ def get_line(lams, lam, Va=0, width=.9, off=0, cutedg=4, vscl=False,
     if verbose:
         print "Get line. delta lam:", round(vadlam, 3),
         print "l1, l2:", round(lam1, 3), round(lam2, 3),
-        print "beg, end indicies:", beg, end, "length:", len(lams)
+        print "beg, end indices:", beg, end, "length:", len(lams)
     if vscl:
         # Simply v = _C * deltalam / lam
         lams = (lams - lam) * _C / lam
@@ -688,10 +688,10 @@ class Walker:
         """Select data, get ID ('night') and flag from filename, collect paths.
         Here we assume, that file name contains information about ID
         (night number, number of spectrum) and flag. Others will be broken
-        (or you must change default regular expression). Then we check presense
+        (or you must change default regular expression). Then we check presence
         of ID in journal keys, get spectrum parameters from journal and append
         this data to resulting list.
-        @param journal: journal dictionary with specta IDs as keys and spectra
+        @param journal: journal dictionary with spectra IDs as keys and spectra
         parameters (for example, JYear, MJD, Spectrograph key, limiting
                 wavelengths, S/N etc) as values.
         @param ext: select file type, must be file extension.
