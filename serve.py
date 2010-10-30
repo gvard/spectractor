@@ -179,6 +179,7 @@ class Walker:
                 of points, defining the flatten polynome, heliocentric
                 correction and S/N value.
         """
+        Sp = collections.namedtuple("Sp", "id flag pth fdpth plpth Vr sn")
         try:
             files = self.files_dct[ext]
         except KeyError:
@@ -191,14 +192,11 @@ class Walker:
                 if self.verbose:
                     print "Exclude", night, "with flag", flag
                 continue
-            if night in journal:
-                jy, mjd, spc, lwv, hwv, Vr, sn, fdsnum = journal[night]
-            else:
+            if night not in journal:
                 continue
-            if os.path.isfile(os.path.splitext(path)[0]+'.ccm.txt'):
-                #polys = read_ccmtxt(os.path.splitext(path)[0]+'.ccm.txt')
-                pls_pth = os.path.splitext(path)[0]+'.ccm.txt'
-            else:
+            jy, mjd, spc, lwv, hwv, Vr, sn, fdsnum = journal[night]
+            pls_pth = os.path.splitext(path)[0]+'.ccm.txt'
+            if not os.path.isfile(pls_pth):
                 if self.verbose:
                     print "Exclude", path, "with no ccm.txt"
                 continue
@@ -207,5 +205,6 @@ class Walker:
                         str(night)[:3]+str(fdsnum).zfill(3)+'.fds')
             if self.verbose:
                 print "Append", night, "with corr", Vr
-            self.spath_set.add((night, flag, path, fds_pth, pls_pth, Vr, sn))
+            params = Sp(night, flag, path, fds_pth, pls_pth, Vr, sn)
+            self.spath_set.add(params)
         return self.spath_set
