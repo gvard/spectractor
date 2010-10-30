@@ -25,14 +25,6 @@ except ImportError, err:
     print >> sys.stderr, "in two functions: flat_order and interp_chain."
 
 
-def backuper(file_pth, verbose=False):
-    """Backup file if it is exist: move it with '-backup' postfix."""
-    if os.path.isfile(file_pth):
-        shutil.move(file_pth, file_pth + '-backup')
-        if verbose:
-            print "Move", file_pth, "to", file_pth + '-backup'
-
-
 def filler(indct, key, val):
     """Fill dictionary which values are lists."""
     try:
@@ -118,8 +110,6 @@ def write_bin(data, bin_pth, objname="", headlen=10, fmtdat='h', verbose=False):
         data = [data, ]
         if verbose:
             print 'write_bin: Input data is 1D! Set ord_num = 1.'
-    # Call backuper for backup existing file:
-    backuper(bin_pth, verbose=verbose)
     # Start writing to file
     binf = open(bin_pth, 'wb')
     binf.write(objname[:headlen].ljust(headlen) + pack('HH', ord_num, ord_len))
@@ -198,7 +188,6 @@ def write_fits(data, fits_pth, objname="", byteswap=True, helicorr=0, hist=""):
     if hist:
         fits.header.add_history("This file created by Spectractor.")
         fits.header.add_history(hist)
-    backuper(fits_pth)
     fits.writeto(fits_pth, output_verify='ignore')
 
 
@@ -268,13 +257,13 @@ def write_fds(data, fds_pth, verbose=False):
     try:
         ord_len = len(data[0])
     except TypeError:
-        ord_num, ord_len = 1, len(data)
+        ord_len = ord_num
+        ord_num = 1
         data = [data, ]
     if verbose:
         print "Write fds. data.shape:", ord_num, ord_len
     arr = np.around(np.array(data)*10000).astype(int).reshape(-1)
     fmtstr = 'i' * ord_len * ord_num
-    backuper(fds_pth)
     fds = open(fds_pth, 'wb')
     fds.write(pack(fmtstr, *arr))
     fds.close()
@@ -294,7 +283,7 @@ def read_ccmtxt(ccm_pth):
         try:
             dots[int(dot[0])].append((float(dot[1]), float(dot[2])))
         except KeyError:
-            dots[int(dot[0])] = [(float(dot[1]), float(dot[2])), ]
+            dots[int(dot[0])] = [(float(dot[1]), float(dot[2]))]
         except (IndexError, ValueError):
             continue
     return dots
