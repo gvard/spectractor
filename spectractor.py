@@ -241,19 +241,21 @@ def read_fds(fds_pth, ord_num, ord_len):
     return data
 
 
-def get_wv_range(fds_pth, ord_num, ord_len):
+def get_wv_range(fds_pth, shift=None):
     """Read only first and last wavelengths from .fds file, so get wl range.
     @param fds_pth: path to fds file.
-    @param ord_num: number of orders.
-    @type ord_num: unsigned int
-    @param ord_len: length of order.
-    @type ord_len: unsigned int
+    @param shift: seek to given position for reading last value.
+        Default is os.path.getsize(fds_pth) - 4
     @return: two floats: first and last wavelength.
     """
     fds = open(fds_pth, 'rb')
+    if not shift:
+        shift = os.path.getsize(fds_pth) - 4
     beg = unpack('i', fds.read(4))[0] / 10000.
-    fds.seek(ord_num*ord_len*4 - 4)
-    return beg, unpack('i', fds.read(4))[0] / 10000.
+    fds.seek(shift)
+    end = unpack('i', fds.read(4))[0] / 10000.
+    fds.close()
+    return beg, end
 
 
 def write_fds(data, fds_pth, verbose=False):
