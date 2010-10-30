@@ -8,6 +8,7 @@ managing various files and journals.
 
 import re
 import os, sys, shutil
+import collections
 
 data_dir, out_dir = 'data', 'out'
 
