@@ -80,6 +80,12 @@ class Walker:
         self.verbose = verbose
         # rexp_spec contains 3 groups: night number, spectrum number and flag.
         self.rexp_spec = "^[a-z_]{0,3}(\d{3})(\d{1,3})[-_]?([a-z_\-]*).*\."
+        # rexp_mt and rexp_fits contain groups for date (year, month, day),
+        # spectrum number and flag.
+        self.rexp_mt = \
+                "^[lns](\d{1})([A-C0-9])(\d{2})[_-]?(\d{2,3})([a-z_]?).*"
+        self.rexp_fits = \
+                "^(?:Bn)?(\d{4})(\d{2})(\d{2})[_-]?(\d{3})([spbfdot_]?).*"
         self.rxp = re.compile(namrxp+'\.('+exts+')$', re.I | re.U)
         # Pathfinder: find dirs and files in args, append them.
         for arg in args:
@@ -209,3 +215,28 @@ class Walker:
             params = Sp(night, flag, path, fds_pth, pls_pth, Vr, sn)
             self.spath_set.add(params)
         return self.spath_set
+
+    def select_images(self):
+        rexpfts = re.compile(self.rexp_fits, re.I | re.U)
+        rexpmt = re.compile(self.rexp_mt, re.I | re.U)
+        Sp = collections.namedtuple("Sp", "pth num date flag keymode")
+        for ext in self.files_dct:
+            for pth in self.files_dct[ext]:
+                fnam = os.path.basename(pth)
+                if ext in ("fits", "fts") and len(rexpfts.findall(fnam)):
+                    year, mon, day, num, flag = rexpfts.findall(fnam)[0]
+                elif ext == "mt" and len(rexpmt.findall(fnam)):
+                    year, mon, day, num, flag = rexpmt.findall(fnam)[0]
+                    mon = str(int(mon, 16)).zfill(2)
+                    year = str(2000 + int(year)) if int(year) else "2010"
+                else:
+                    continue
+                keymode = False
+                # Set flag for incorrect FITS header cards in NES spectra
+                # taken in 2008:
+                if 20080422 < int("".join((year, mon, day))) < 20081103:
+                    keymode = "flstr"
+                date = tuple(map(int, (year, mon, day)))
+                params = Sp(pth, num, date, flag, keymode)
+                self.path_set.add(params)
+        return self.path_set
