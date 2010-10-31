@@ -531,3 +531,259 @@ def gen_split_array(ordlen=4000, ovr=100, beg=4000, end=6800, step=.05):
     @return list of chains.
     """
     return split_array(np.arange(beg, end, step), ordlen, ovr)
+
+
+
+class Spectractor:
+    """Class for manipulating set of 1D spectra: collect data, prepare for plot.
+    First we read raw data and fds. Than select spectral orders, flat and
+        correct them for heliocentric velocity.
+    @param spectra_lst: list with spectra file paths etc. Format is:
+            (night, flag, spectrum path, fds path, pls path, Vr, ...)
+    @param vscl: get spectrum chains in velocity scale if True, wavelengths
+            otherwise
+    @param wdth: half-width of spectral chain in angstroms
+    @param cutedg_dct: dictionary with number of pixels to cut for spectral
+            orders
+    @param edglim: number of pixels to cut at the edges of each spectral order
+    """
+    def __init__(self, spectra_lst, vscl=True, wdth=4, cutedg_dct=None,
+                edglim=5, verbose=False):
+        self.spectra = spectra_lst
+        self.vscl = vscl
+        self.window = wdth
+        self.cuts_dct = cutedg_dct
+        self.edglim = edglim
+        self.verbose = verbose
+        self.off = 0
+        self.C = 299792.5
+        # Spline parameters for flat_order
+        self.sps = None
+        self.spk = 3
+
+    def get_raw(self, data_pth, fds_pth, pp_pth):
+        """Read binary files containing data, wavelength scale (fds) and ccm
+            (file with flatten polynome points).
+        @param data_pth: path to spectrum data file
+        @param fds_pth: path to spectrum dispersion curve file
+        @param pp_pth: path to polynome points file
+        @return data array, fds array, polynome points dictionary
+        """
+        if data_pth.endswith(".200"):
+            head, data = read_fits(data_pth)
+            self.nx, self.ny = head.get('NAXIS2'), head.get('NAXIS1')
+            #self.nx, self.ny = len(data), len(data[0])
+        elif data_pth.endswith(".fits"):
+            head, data = read_fits(data_pth, byteswap=True)
+            self.nx, self.ny = head.get('NAXIS2'), head.get('NAXIS1')
+        elif data_pth.endswith(".100"):
+            (objname, self.nx, self.ny), data = read_bin(data_pth)
+        else:
+            print >> sys.stderr, "Sorry, unknown data file format in", data_pth
+            return None, None, None
+        fds = read_fds(fds_pth, self.nx, self.ny)
+        polys_dct = read_ccmtxt(pp_pth)
+        return data, fds, polys_dct
+
+    def filler(self, key, lams, dats):
+        if self.dtype is dict:
+            self.fdata[key] = (lams, dats)
+        elif self.dtype is list:
+            self.fdata.append((key, lams, dats))
+
+    def flat_order(self, order, flatdots, beg, end, intlev=0):
+        """Make interpolation of given order by spline based on given points.
+        This is wrapper function for SciPy spline interpolation.
+        See help of splrep and splev functions from scipy.interpolate.
+        Spline parameters are set to default (cubic spline). If you want
+                to change them, set class variables self.spk and self.sps
+        @param order: 1D array of data
+        @param flatdots: points for plot flat spline. Must be sorted!
+        @type flatdots: tuple or list of [dotsx], [dotsy]
+        @param intlev: intensity shift for flatten order
+        @return: normalized (flatten) order, shifted on intlev
+        """
+        xflat, yflat = zip(*flatdots)
+        try:
+            tckp = splrep(xflat, yflat, s=self.sps, k=self.spk)
+        except ValueError, err:
+            print >> sys.stderr, "ValueError in flat_order:", err,
+            print >> sys.stderr, "Maybe you should sort input arrays."
+            raise SystemExit
+        return order / splev(np.arange(beg+1, end+1, 1), tckp) + intlev
+
+    def take_orders(self, data, fds, lam, polypt, ish=0, Va=0, olim=2,
+                cuts=None):
+        """Take orders from given spectrum which contains given wavelength.
+        Here we assume that each order has fds sorted by wavelength.
+        After selection each selected order becomes flatten and cut using
+                class settings. Resulted chains are collect in self.fdata.
+        @param data: data as 2D array
+        @param fds: dispersion curve as 2D array of wavelengths
+        @param lam: wavelength, probably containing in fds' wavelength range
+        @param polypt: dictionary with points for flatten polynome plotting
+        @param ish: intensity shift for flatted order
+        @param Va: spectrum shift in km/s, for example, heliocentric correction
+        @param olim: limit for number of extracted orders. This parameter is
+                used for speed up
+        """
+        count = 0
+        #if not self.nx:
+            #self.nx = len(data)
+        for i in xrange(self.nx):
+            if fds[i][self.edglim]-self.wcut < lam < \
+                    fds[i][-self.edglim]+self.wcut:
+                if i+1 in polypt:
+                    pols = polypt[i+1]
+                else:
+                    print >> sys.stderr, "polynome points dict has no", i+1, \
+                        "order, continue"
+                    continue
+                if cuts and i in cuts:
+                    cut = cuts[i]
+                else:
+                    cut = None
+                lams, beg, end = self.get_line(fds[i], lam, Va=Va, cuts=cut)
+                if beg > end:
+                    print >> sys.stderr, "Zero length of chain, continue"
+                    continue
+                dats = self.flat_order(data[i][beg:end], pols, beg, end,
+                        intlev=ish)
+                #dats = flat_order(data[i], pols, intlev=ish)[beg:end]
+                key = self.mkey(i)
+                count += 1
+                self.filler(key, lams, dats)
+            if count == olim:
+                break
+
+    def take_atlas(self, data, fds, polypt, ish=0, Va=0, cuts=None):
+        """Take all orders from given spectrum, flat and shift them.
+        Resulted chains are collect in self.fdata.
+        Parameters are the same as in take_orders.
+        """
+        for i in xrange(self.nx):
+            if i+1 in polypt:
+                pols = polypt[i+1]
+            else:
+                print >> sys.stderr, "polynome points dict has no", i+1, \
+                        "order, pass"
+                continue
+            if cuts and i in cuts:
+                cut = cuts[i]
+            else:
+                cut = None
+            # Be careful with self.off, here it is in velocity scale (km/s)
+            vadlam = ((Va+self.off)*fds[i]) / self.C
+            lams = fds[i] + vadlam # + self.off
+            if cut:
+                beg, end = max(beg, cut[0]), min(end, cut[1])
+            else:
+                beg, end = self.edglim, self.ny-self.edglim
+            if beg > end:
+                continue
+            if self.verbose:
+                print "limiting pixels:", beg, end, "fds chain length:", end-beg
+            lams = lams[beg:end]
+            dats = self.flat_order(data[i][beg:end], pols, beg, end, intlev=ish)
+            key = self.mkey(i)
+            self.filler(key, lams, dats)
+
+    def get_line(self, lams, lam, Va=0, cuts=None):
+        """Get fds, wavelength, shift spectrum with Va and return cut fds.
+        First we calculate shift value dlam = (Va*lam)/C, where C is a speed
+        of light. Then we get wavelength range depending on class settings.
+        @param lams: dispersion curve as array of wavelengths
+        @param lam: reference wavelength
+        @param Va: spectrum shift in km/s, for example, heliocentric correction
+        @param cuts: tuple with number of start and end pixels to cut for
+                given order
+        @return: fds chain of wavelengths or velocities, pixel numbers of
+                limiting wavelengths
+        """
+        if Va:
+            vadlam = (Va * lams) / self.C
+            # shift fds on 'vadlam' angstorms
+            lams += vadlam
+        beg = np.where(lams>self.llam)[0][0]
+        end = np.where(lams<self.hlam)[0][-1]
+        if cuts:
+            beg = max(beg, self.edglim, cuts[0])
+            end = min(end, self.ny-self.edglim, cuts[1])
+        else:
+            beg, end = max(beg, self.edglim), min(end, self.ny-self.edglim)
+        if self.verbose:
+            print "Get line; wv shift:", np.mean(np.round(vadlam, 3)),
+            print "limiting pixels:", beg, end, "fds chain length:", end-beg
+        lams = lams[beg:end]
+        if self.vscl:
+            # Convert to radial velocity scale: simply v = C * deltalam / lam
+            lams = (lams - lam) * self.C / lam
+        return lams, beg, end
+
+    def get_xlims(self, lam):
+        """Get chain limiting wavelengths (or velocities)"""
+        if self.vscl:
+            lam1 = (self.llam - lam) * self.C / lam
+            lam2 = (self.hlam - lam) * self.C / lam
+            return lam1, lam2
+        else:
+            return self.llam, self.hlam
+
+    def get_chains(self, lam, dtype, off=None, wcut=None, ish=0):
+        """Collect spectra chains containing given wavelength.
+        @param lam: wavelength of interest
+        @param dtype: type of resulting variable, where we collect final data.
+                Supports dict or list for now
+        @param off: shift chain window for placing line (lam) at the center
+                of the window
+        @param wcut: wavelength shift in angstroms: break order with
+                'incomplete' line with wcut<0 or take it otherwise)
+        @param ish: intensity shift for flatted order
+        @return dictionary or list with spectra chains, values are tuples and
+                keys are labels. Type of resulting data are given in dtype
+        """
+        self.dtype = dtype
+        self.fdata = self.dtype()
+        if off:
+            self.off = off
+        if wcut:
+            self.wcut = wcut
+        else:
+            self.wcut = self.window / 4
+        self.llam = lam - self.window - self.off
+        self.hlam = lam + self.window - self.off
+        #self.mkey = lambda x: (lam, x)
+        for spec in sorted(self.spectra):
+            self.mkey = lambda x: " ".join((str(spec.id), str(lam), str(x)))
+            data, fds, polys = self.get_raw(spec.pth, spec.fdpth, spec.plpth)
+            if self.cuts_dct and spec.id in self.cuts_dct:
+                cuts = self.cuts_dct[spec.id]
+            else:
+                cuts = None
+            self.take_orders(data, fds, lam, polys, Va=spec.Vr, cuts=cuts,
+                    ish=ish)
+        return self.fdata
+
+    def get_atlas(self, dtype, off=None, ish=0):
+        """Get entire spectra orders for atlas plotting.
+        @param dtype: type of resulting variable, where we collect final data.
+                Supports dict or list for now
+        @param off: shift chain window for placing line (lam) at the center
+                of the window
+        @param ish: intensity shift for flatted order
+        @return dictionary or list with spectra chains, values are tuples and
+                keys are labels. Type of resulting data are given in dtype
+        """
+        self.dtype = dtype
+        self.fdata = self.dtype()
+        if off:
+            self.off = off
+        for spec in sorted(self.spectra):
+            self.mkey = lambda x: " ".join((str(spec.id), str(x)))
+            data, fds, polys = self.get_raw(spec.pth, spec.fdpth, spec.plpth)
+            if self.cuts_dct and spec.id in self.cuts_dct:
+                cuts = self.cuts_dct[spec.id]
+            else:
+                cuts = None
+            self.take_atlas(data, fds, polys, Va=spec.Vr, cuts=cuts, ish=ish)
+        return self.fdata
