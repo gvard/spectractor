@@ -50,7 +50,7 @@ def read_bin(bin_pth, headlen=10, fmtdat='h', npuse=False, verbose=False):
         data = [[] for _ in xrange(ord_num)]
     for i in xrange(ord_num):
         data[i] = unpack(fmt_str, bindat.read(bsize*ord_len))
-    return objname, data
+    return (objname, ord_num, ord_len), data
 
 
 def get_bin_head(bin_pth, headlen=10, verbose=False):
