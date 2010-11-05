@@ -182,3 +182,140 @@ def precess(mjd, objcoords, verbose=False):
     if verbose:
         print "Precess to", mjd, ra, dec, "with J2000 coords", objcoords
     return ra, dec
+
+
+class MidWorker:
+    """Class with simple wrappers for some ESO MIDAS routines
+    """
+    def __init__(self, verbose=False):
+        self.verbose = bool(verbose)
+
+    def plot(self, bnam, plt="row", cut=2010, over=False):
+        """Wrapper for Midas functions plot/row, plot/colu"""
+        if over:
+            over = "over"
+        else:
+            over = ""
+        if self.verbose:
+            print "Plot", over, plt, bnam, "cut on pixel", cut
+        cmd = " ".join((over+"plot/"+plt, bnam, "@"+str(cut/2)))
+        midas.do(cmd)
+
+    def readesc(self, fname, desc="npix"):
+        """Wrapper for read/desc Midas procedure"""
+        nx, ny = midas.readDesc(fname, desc)[-2:]
+        return int(nx), int(ny)
+
+    def loima(self, img, chan=0):
+        """Load image with autocuts"""
+        if not (os.path.isfile(img) or os.path.isfile(img+'.bdf')):
+            return None, None
+        nx, ny = self.readesc(img)
+        dx, dy = map(int, midas.writeOut('{ididev(2)} {ididev(3)}'))
+        if nx > dx:
+            i = round(- (nx/(dx - 10.)) - 1, 2)
+        if ny > dy:
+            j = round(- (ny/(dy - 10.)) - 1, 2)
+        scale = ",".join((str(i), str(j), 'a'))
+        if self.verbose:
+            print "Scale to", scale
+        midas.loadImag(img, str(chan), 'scale='+scale, 'center=c,c')
+        midas.writeKeyw("log/i/4/1", "2")
+        #midas.putKeyword("log", 2)
+        midas.statistImag(img)
+        midas.do('@a autocuts ' +img+ ' SIGMA')
+        midas.writeKeyw("log/i/4/1", "0")
+        return i, j
+
+    def filtcosm(self, specname, ns=2, cosm="cosm"):
+        """Wrapper for filter/cosm Midas routine, which removes cosmic
+        ray events from CCD image and replace them by a local median value.
+        @param specname: input image name. Resulting image will be with the
+                same name and the 'f' postfix
+        @param ns: threshold for the detection of cosmic rays
+        param cosm: frame containing mask for the giving image
+        """
+        #if specname.endswith(".bdf"):
+        i, j = self.loima(specname)
+        resnam = specname.split(".")[0]+"f"
+        params = ",".join(map(str, (0, 2, 8, ns, 2)))
+        midas.filterCosm(specname, resnam, params, cosm)
+        scale = ",".join((str(i), str(j), 'max'))
+        midas.loadImag(cosm, "scale="+scale, "cuts=0,1")
+
+    def cycle(self, beg, end, plt, fcat=False, pfix=""):
+        k = True
+        if fcat:
+            midas.createIcat(fcat, "NULL")
+        else:
+            namlst = []
+        for bnum in xrange(beg, end+1):
+            bnam = 'l'+str(bnum).zfill(3) + pfix
+            if os.path.isfile(bnam+'.bdf'):
+                if k:
+                    if self.verbose:
+                        print "Add first", bnam, "image"
+                    nx, ny = self.readesc(bnam)
+                    cut = ny if plt == "row" else nx
+                    self.plot(bnam, plt, cut)
+                    firstnam, k = bnam, False
+                else:
+                    if self.verbose:
+                        print "Add", bnam, "image"
+                    self.plot(bnam, plt, cut, over=True)
+                if fcat:
+                    midas.addIcat(fcat, bnam)
+                else:
+                    namlst.append(bnam)
+        if not fcat:
+            namlst = ",".join(namlst)
+        else:
+            namlst = fcat
+        return firstnam, namlst, cut
+
+    def pltgra(self, resnam, plt, cut, over=True, midlo=False):
+        midas.setGrap("color=2")
+        self.plot(resnam, plt, cut, over=over)
+        midas.setGrap("color=1")
+        if midlo:
+            midas.do("@@ lo_ima " + resnam)
+        else:
+            self.loima(resnam)
+
+    def crebias(self, beg, end, resnam='bias', icat=False, plt="row", med=35):
+        """Create bias frame from set of biases.
+        @param resnam: resulting frame name
+        @param med: value of low and high interval in median averaging
+        @param plt: plotting mode, could be row or col.
+        """
+        firstnam, namlst, cut = self.cycle(beg, end, plt, fcat=icat)
+        averopt = '+ ' + ','.join(('median', str(med), str(med), 'data'))
+        midas.averageImag(resnam, "=", namlst, "?",  averopt)
+        self.pltgra(resnam, plt, cut)
+
+    def creflat(self, beg, end, resnam=None, icat='flat.cat', plt="col",
+                pfix="d", averopt="", delcat=False):
+        """Create flat field average image
+        @param delcat: delete created cat, if icat is present
+        @param pfix: postfix of image filename, the "d" value means
+                dark substracted
+        """
+        firstnam, namlst, cut = self.cycle(beg, end, plt, fcat=icat, pfix=pfix)
+        if not resnam:
+            resnam = firstnam.replace('d', 'ad')
+        midas.averageImag(resnam, "=", namlst, "?", averopt)
+        self.pltgra(resnam, plt, cut)
+        if delcat and icat:
+            os.remove(icat)
+
+    def subdark(self, beg, end, biasname="bias", pfix="d"):
+        """Substract bias from images"""
+        for bnum in xrange(beg, end+1):
+            bnam = 'l'+str(bnum).zfill(3)
+            if os.path.isfile(bnam+'.bdf'):
+                nameo = bnam + pfix
+                midas.computeImag(nameo, "=", bnam, "-", biasname)
+                midas.statistImag(nameo)
+                self.loima(nameo)
+                midas.copyDd(bnam, "*,3", nameo)
+                os.remove(bnam+'.bdf')
