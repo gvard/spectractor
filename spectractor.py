@@ -23,6 +23,7 @@ except ImportError, err:
     print >> sys.stderr, str(err), "SciPy is required for spline fitting only",
     print >> sys.stderr, "in two functions: flat_order and interp_chain."
 
+_C = 299792.458
 
 def read_bin(bin_pth, headlen=10, fmtdat='h', npuse=False, verbose=False):
     """Read binary file, for example *.100 files.
@@ -373,7 +374,6 @@ def get_line(lams, lam, Va=0, width=.9, off=0, cutedg=4, vscl=False,
     @return: array of wavelengths or velocities, start and end indices
             of input array' slice.
     """
-    _C = 299792.5
     vadlam = (Va * lam) / _C
     if vadlam:
         lams += vadlam
@@ -556,7 +556,7 @@ class Spectractor:
         self.edglim = edglim
         self.verbose = verbose
         self.off = 0
-        self.C = 299792.5
+        self.C = _C
         # Spline parameters for flat_order
         self.sps = None
         self.spk = 3
