@@ -533,7 +533,6 @@ def gen_split_array(ordlen=4000, ovr=100, beg=4000, end=6800, step=.05):
     return split_array(np.arange(beg, end, step), ordlen, ovr)
 
 
-
 class Spectractor:
     """Class for manipulating set of 1D spectra: collect data, prepare for plot.
     First we read raw data and fds. Than select spectral orders, flat and
@@ -542,16 +541,16 @@ class Spectractor:
             (night, flag, spectrum path, fds path, pls path, Vr, ...)
     @param vscl: get spectrum chains in velocity scale if True, wavelengths
             otherwise
-    @param wdth: half-width of spectral chain in angstroms
     @param cutedg_dct: dictionary with number of pixels to cut for spectral
             orders
     @param edglim: number of pixels to cut at the edges of each spectral order
     """
-    def __init__(self, spectra_lst, vscl=True, wdth=4, cutedg_dct=None,
+    def __init__(self, spectra_lst, vscl=True, cutedg_dct=None, dtype=list,
                 edglim=5, verbose=False):
+        self.dtype = dtype
+        self.fdata = self.dtype()
         self.spectra = spectra_lst
         self.vscl = vscl
-        self.window = wdth
         self.cuts_dct = cutedg_dct
         self.edglim = edglim
         self.verbose = verbose
@@ -729,11 +728,12 @@ class Spectractor:
         else:
             return self.llam, self.hlam
 
-    def get_chains(self, lam, dtype, off=None, wcut=None, ish=0):
+    def get_chains(self, lam, wdth=4, off=None, wcut=None, ish=0):
         """Collect spectra chains containing given wavelength.
         @param lam: wavelength of interest
         @param dtype: type of resulting variable, where we collect final data.
                 Supports dict or list for now
+        @param wdth: half-width of spectral chain e.g. in angstroms
         @param off: shift chain window for placing line (lam) at the center
                 of the window
         @param wcut: wavelength shift in angstroms: break order with
@@ -742,16 +742,14 @@ class Spectractor:
         @return dictionary or list with spectra chains, values are tuples and
                 keys are labels. Type of resulting data are given in dtype
         """
-        self.dtype = dtype
-        self.fdata = self.dtype()
         if off:
             self.off = off
         if wcut:
             self.wcut = wcut
         else:
-            self.wcut = self.window / 4
-        self.llam = lam - self.window - self.off
-        self.hlam = lam + self.window - self.off
+            self.wcut = wdth / 4
+        self.llam = lam - wdth - self.off
+        self.hlam = lam + wdth - self.off
         #self.mkey = lambda x: (lam, x)
         for spec in sorted(self.spectra):
             self.mkey = lambda x: " ".join((str(spec.id), str(lam), str(x)))
@@ -764,18 +762,15 @@ class Spectractor:
                     ish=ish)
         return self.fdata
 
-    def get_atlas(self, dtype, off=None, ish=0):
+    def get_atlas(self, off=None, ish=0):
         """Get entire spectra orders for atlas plotting.
         @param dtype: type of resulting variable, where we collect final data.
                 Supports dict or list for now
-        @param off: shift chain window for placing line (lam) at the center
-                of the window
+        @param off: shift order on given value
         @param ish: intensity shift for flatted order
         @return dictionary or list with spectra chains, values are tuples and
                 keys are labels. Type of resulting data are given in dtype
         """
-        self.dtype = dtype
-        self.fdata = self.dtype()
         if off:
             self.off = off
         for spec in sorted(self.spectra):
