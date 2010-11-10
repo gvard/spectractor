@@ -190,6 +190,27 @@ def get_fits_card(fts_pth, cardnam="OBJ"):
         return
 
 
+def read_dis(dis_pth, ord_num, maxpnt=30):
+    """Read .dis file with dispersion curves
+    @param maxpnt: maximum number of points in one curve
+    @return list with dispersion curve for each order
+    """
+    fsz = 4 #calcsize('f')
+    dis = open(dis_pth, 'rb')
+    data = []
+    for j in xrange(ord_num):
+        #number of points in current curve
+        curlen = int(unpack('f', dis.read(fsz))[0])
+        data.append([])
+        for i in xrange(curlen):
+            xlm = unpack('ff', dis.read(fsz*2))
+            data[j].append(xlm)
+        shift = (maxpnt - curlen) * fsz * 2
+        dis.seek(dis.tell()+shift)
+    dis.close()
+    return data
+
+
 def read_fds(fds_pth, ord_num, ord_len):
     """Read .fds file with array of wavelengths.
     For reading fds we must know about data shape of reference spectrum:
