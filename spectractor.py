@@ -753,3 +753,69 @@ class Spectractor:
             return llim, hlim
         else:
             return self.llam, self.hlam
+
+    def collect_chains(self, lam, width=4, shift=0, ish=0, wcut=None):
+        """Collect spectra chains containing given wavelength in a given
+        spectral window.
+        @param lam: wavelength of interest
+        @param wdth: half-width of spectral window in wavelength scale
+        @param shf: shift of the spectral window for placing lam at the center
+                of the window
+        @param ish: relative intensity shift for flatted order
+        @param wcut: tolerance parameter for rejecting partly matching orders.
+                The meaning of the parameter is a shift of chain limiting
+                wavelengths before comparing with window limits.
+                So, some chains can be break with wcut<0 and can be processed
+                with wcut>0. Default is 1.
+        @return dictionary or list with spectra chains, values are tuples and
+                keys are parameters. Type of resulting data are given in dtype
+        """
+        if wcut:
+            self.wcut = wcut
+        self.llam = lam - width - shift
+        self.hlam = lam + width - shift
+        #self.mkey = lambda spec, x: " ".join((str(lam),
+                #str(round(spec.jd, 3)), str(spec.id), str(x)))
+        self.runner(lam=lam, ish=ish)
+        return self.fdata
+
+    def get_chains(self, lam, llim=None, hlim=None, ish=0, wcut=None):
+        """Collect spectra chains containing given wavelength in a given
+        velocity range. At least one of the limits in velocity scale must be set
+        @param lam: wavelength of interest
+        @param ish: relative intensity shift for flatted order
+        @param wcut: tolerance parameter for rejecting partly matching orders.
+                The meaning of the parameter is a shift of chain limiting
+                wavelengths before comparing with window limits.
+                So, some chains can be break with wcut<0 and can be processed
+                with wcut>0. Default is 1.
+        @return dictionary or list with spectra chains, values are tuples and
+                keys are parameters. Type of resulting data are given in dtype
+        """
+        if wcut:
+            self.wcut = wcut
+        if hlim and not llim:
+            llim = - hlim
+        elif llim and not hlim:
+            hlim = - llim
+        if llim and hlim:
+            self.llam = (llim * lam)/_C + lam
+            self.hlam = (hlim * lam)/_C + lam
+        else:
+            return
+        #self.mkey = lambda spec, x: " ".join((str(lam),
+                #str(round(spec.jd, 3)), str(spec.id), str(x)))
+        self.runner(lam, ish=ish)
+        return self.fdata
+
+    def get_atlas(self, llam=None, hlam=None, ish=0):
+        """Collect spectra chains in a given wavelength range.
+        If limit is not set, get all orders in this direction.
+        @param ish: relative intensity shift for flatted order
+        @return dictionary or list with spectra chains, values are tuples and
+                keys are parameters. Type of resulting data are given in dtype
+        """
+        self.llam = llam
+        self.hlam = hlam
+        self.runner(ish=ish)
+        return self.fdata
