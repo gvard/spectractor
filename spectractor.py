@@ -31,12 +31,12 @@ def read_bin(bin_pth, headlen=10, fmtdat='h', npuse=False, verbose=False):
     The structure of given binary files: First 'headlen' bytes: Object name.
     Next 2 + 2 bytes: number of orders and number of pixels in one order.
     The rest is an array of integer values with given shape.
-    @param bin_pth: path for input binary file.
-    @param headlen: Length of text header, used for saving object name.
+    @param bin_pth: path for input binary file
+    @param headlen: Length of text header, used for saving object name
     @param fmtdat: struct format character for L{pack}/L{unpack}, usually
-            one of the "bBhHi". Default is signed short.
-    @param npuse: use NumPy and return data in np.array, lists otherwise.
-    @return: object name, data.
+        one of the "bBhHi". Default is signed short
+    @param npuse: use NumPy and return data in np.array, lists otherwise
+    @return: object name, data
     """
     bindat = open(bin_pth, 'rb')
     objname = bindat.read(headlen)
@@ -55,10 +55,10 @@ def read_bin(bin_pth, headlen=10, fmtdat='h', npuse=False, verbose=False):
 
 
 def get_bin_head(bin_pth, headlen=10, verbose=False):
-    """Get shape of the data and object name from binary (ex. *.100) file.
-    @param bin_pth: path for input binary file.
-    @param headlen: Length of text header, used for saving object name.
-    @return: number of orders, length of one order, header 'object name' field.
+    """Get shape of the data and object name from binary file.
+    @param bin_pth: path for input binary file
+    @param headlen: Length of text header, used for saving object name
+    @return: number of orders, length of one order, header 'object name' field
     """
     bindat = open(bin_pth, 'rb')
     objname = bindat.read(headlen)
@@ -72,14 +72,14 @@ def get_bin_head(bin_pth, headlen=10, verbose=False):
 def write_bin(data, bin_pth, objname="", headlen=10, fmtdat='h', verbose=False):
     """Write binary file, for example *.100 files.
     100 format is simple representation of 2D array with short integer values.
-    @param data: 2D array of int values.
-    @param bin_pth: path for output file.
+    @param data: 2D array of int values
+    @param bin_pth: path for output file
     @param objname: Object name (or some other text). objname strip (or fit)
-            to 'headlen' chars.
+        to 'headlen' chars
     @param headlen: length of objname to write. We strip or fit objname to given
-            length. Default value is 10 (for "100" format).
+        length. Default value is 10 (for "100" format)
     @param fmtdat: struct format character for L{pack}/L{unpack}, usually
-            one of the "bBhHi". Default is signed short.
+        one of the "bBhHi". Default is signed short
     """
     # Get data shape:
     ord_num = len(data)
@@ -117,12 +117,12 @@ def write_bin(data, bin_pth, objname="", headlen=10, fmtdat='h', verbose=False):
 
 def read_fits(file_pth, byteswap=False, delempty=True, verbose=False):
     """Read FITS, but with byteswap=False by default for *.200 files.
-    @param file_pth: Path to input FITS file.
-    @param byteswap: False for "200" format, True for normal FITS.
-    @param delempty: delete empty cards from header.
+    @param file_pth: Path to input FITS file
+    @param byteswap: False for "200" format, True for normal FITS
+    @param delempty: delete empty cards from header
     @param verbose: print header length, OBJECT card, data.shape
-            and data.dtype.
-    @return: header as PyFITS header and data as numpy.array.
+        and data.dtype
+    @return: header as PyFITS header and data as numpy.array
     """
     #ftsdat = pyfits.open(file_pth)
     #head, data = ftsdat[0].header, ftsdat[0].data.byteswap(byteswap)
@@ -145,12 +145,18 @@ def write_fits(data, fits_pth, objname="", byteswap=True, helicorr=0, hist=""):
     the keyword name, but C{len('DECH-HELIOCORRECTION') == 20}. All questions
     to U{author of "200" format<http://gazinur.com>}. To avoid this, we use
     trick described in the PyFITS handbook (2009, p.35).
-    Also, "200" format supports only integer values, not float.
-    @param data: 2D array. may be list of lists or numpy.array with NAXIS=2.
-    @param byteswap: True for "200" format, False for writing normal FITS.
-    @param objname: object name. If not empty, write it to card OBJECT.
-    @param hist: history. If not empty, write it to card HISTORY.
-    @param helicorr: Write heliocentric correction in header, if byteswap.
+
+    Also, "200" format supports only integer values, not float. The best way
+    for converting array of floats is use following commands:
+
+        >>> import numpy as np
+        >>> data = np.around(data).astype(int)
+
+    @param data: 2D array. may be list of lists or numpy.array with NAXIS=2
+    @param byteswap: True for "200" format, False for writing normal FITS
+    @param objname: object name. If not empty, write it to card OBJECT
+    @param hist: history. If not empty, write it to card HISTORY
+    @param helicorr: Write heliocentric correction in header, if byteswap
     """
     data = np.array(data).byteswap(byteswap)
     if not byteswap:
@@ -176,9 +182,9 @@ _CRDSPL = lambda crd: crd.split('=')[1].split('/')[0].strip().strip("'").strip()
 def get_fits_card(fts_pth, cardnam="OBJ"):
     """Read FITS header, while FITS card not equal END or cardnam.
     Pure Python, no PyFITS ;)
-    @param cardnam: first chars of card name. Case insensitive.
+    @param cardnam: first chars of card name. Case insensitive
     @type cardnam: string
-    @return: value of last matching card or None if card not found.
+    @return: value of last matching card or None if card not found
     """
     fts, card = open(fts_pth, 'rb'), ''
     while card[:len(cardnam)] not in ('END'.ljust(len(cardnam)),
@@ -191,9 +197,9 @@ def get_fits_card(fts_pth, cardnam="OBJ"):
 
 
 def read_dis(dis_pth, ord_num, maxpnt=30):
-    """Read .dis file with dispersion curves
+    """Read .dis file with dispersion curves.
     @param maxpnt: maximum number of points in one curve
-    @return list with dispersion curve for each order
+    @return: list with dispersion curve for each order
     """
     fsz = 4 #calcsize('f')
     dis = open(dis_pth, 'rb')
@@ -216,12 +222,12 @@ def read_fds(fds_pth, ord_num, ord_len):
     For reading fds we must know about data shape of reference spectrum:
     number of orders and length of one order. Output data is an array of
     wavelengths (floating point numbers) for each point of reference spectrum.
-    @param fds_pth: path to fds file.
-    @param ord_num: number of orders.
+    @param fds_pth: path to fds file
+    @param ord_num: number of orders
     @type ord_num: unsigned int
-    @param ord_len: length of order.
+    @param ord_len: length of order
     @type ord_len: unsigned int
-    @return: numpy array of float wavelengths.
+    @return: numpy array of float wavelengths
     """
     fds = open(fds_pth, 'rb')
     fmt_str = 'i' * ord_len * ord_num
@@ -233,10 +239,10 @@ def read_fds(fds_pth, ord_num, ord_len):
 
 def get_wv_range(fds_pth, shift=None):
     """Read only first and last wavelengths from .fds file, so get wl range.
-    @param fds_pth: path to fds file.
+    @param fds_pth: path to fds file
     @param shift: seek to given position for reading last value.
         Default is os.path.getsize(fds_pth) - 4
-    @return: two floats: first and last wavelength.
+    @return: two floats: first and last wavelength
     """
     fds = open(fds_pth, 'rb')
     if not shift:
@@ -250,8 +256,8 @@ def get_wv_range(fds_pth, shift=None):
 
 def write_fds(data, fds_pth, verbose=False):
     """Write .fds binary file with array of wavelengths.
-    @param data: 2D array data (np.array or list).
-    @param fds_pth: path for saving fds file.
+    @param data: 2D array data (np.array or list)
+    @param fds_pth: path for saving fds file
     """
     # Get data shape:
     ord_num = len(data)
@@ -274,9 +280,9 @@ def read_ccmtxt(ccm_pth):
     """Read *.ccm.txt files. This files creates by Dech 7.4.x.
     ccm.txt files is simple way to represent a continuum polynome for each
     order in echelle spectrum.
-    @param ccm_pth: path to .ccm.txt file.
+    @param ccm_pth: path to .ccm.txt file
     @return: dictionary with points for spline fitting. keys are number
-             of orders, values are lists of tuples with points.
+    of orders, values are lists of tuples with points
     """
     dots = {}
     for dot in open(ccm_pth, 'r').read().splitlines():
@@ -297,8 +303,8 @@ def write_ccmtxt(ccm_dct, ccm_pth):
     @bug: difference for resulting .ccm.txt in rounding of floats:
     8.0 -> '8.0' (Dech: 8.0 -> '8').
     @param ccm_dct: dictionary with order numbers as keys and lists of
-            polynome points as values.
-    @param ccm_pth: path to .ccm.txt file.
+        polynome points as values
+    @param ccm_pth: path to .ccm.txt file
     """
     ccm = open(ccm_pth, 'wb')
     for ordnum, pnt in sorted(ccm_dct.items()):
@@ -310,17 +316,17 @@ def write_ccmtxt(ccm_dct, ccm_pth):
 def take_orders(data, fds, lam, polypt, edglim=5, ish=0, wcut=.5, olim=2):
     """Take orders from data which contains given wavelength.
     Here we assume that orders are sorted by wavelength.
-    @param data: data as 2D array.
-    @param fds: dispersion curve as 2D array of wavelengths.
-    @param lam: wavelength, probably containing in fds' wavelength range.
-    @param polypt: dictionary with points for flatten polynome plotting.
-    @param edglim: index for breaking points at the edges.
-    @param ish: intensity shift for flatted order.
+    @param data: data as 2D array
+    @param fds: dispersion curve as 2D array of wavelengths
+    @param lam: wavelength, probably containing in fds' wavelength range
+    @param polypt: dictionary with points for flatten polynome plotting
+    @param edglim: index for breaking points at the edges
+    @param ish: intensity shift for flatted order
     @param wcut: wavelength shift in angstroms: break order with
-            'incomplete' line with wcut<0 or take it otherwise).
-    @param olim: limit for number of extracted orders.
+        'incomplete' line with wcut<0 or take it otherwise)
+    @param olim: limit for number of extracted orders
     @return: dictionary with tuples of fds[i], data[i] as values
-            and order numbers as keys.
+        and order numbers as keys
     """
     ords_dct = {}
     for i in xrange(len(data)):
@@ -339,19 +345,20 @@ def flat_order(order, flatdots, s=None, k=3, intlev=0):
     """Make interpolation of given order by spline based on given points.
     This is wrapper function for SciPy spline interpolation. Description
     of s and k parameters are from docstrings of scipy.interpolate.splrep.
-    @param order: 1D array of int data.
-    @param flatdots: points for plot flat spline.
+    @param order: 1D array of int data
+    @param flatdots: points for plot flat spline
     @type flatdots: tuple or list of [dotsx], [dotsy]
     @param k: The order of the spline fit. It is recommended to use cubic
-            splines; 1 <= k <= 5.
+        splines; 1 <= k <= 5
     @param s: A smoothing condition. The amount of smoothness is determined by
-    satisfying the conditions: sum((w * (y - g))**2,axis=0) <= s where g(x) is
-    the smoothed interpolation of (x, y). Larger s means more smoothing while
-    smaller values of s indicate less smoothing. Recommended values of s depend
-    on the weights, w. default: s=m-sqrt(2*m) if weights are supplied.
+        satisfying the conditions: sum((w * (y - g))**2,axis=0) <= s where g(x)
+        is the smoothed interpolation of (x, y). Larger s means more smoothing
+        while smaller values of s indicate less smoothing. Recommended values
+        of s depend on the weights, w. default: s=m-sqrt(2*m) if weights are
+        supplied
     @param intlev: Intensity shift for flatted order. By default
-            0 <= output_data <= 1.
-    @return: normalized order.
+        0 <= output_data <= 1
+    @return: normalized order
     """
     pixnums = np.arange(1, len(order)+1, 1)
     xflat, yflat = zip(*flatdots)
@@ -366,10 +373,10 @@ def flat_order(order, flatdots, s=None, k=3, intlev=0):
 
 def interp_chain(lams, dats, mf=5, k=1):
     """Interpolate chain with multiply factor mf.
-    @param f: Multiply factor. length of output arrays is calculated as
-            length of input arrays multiplied by mf.
-    @param k: spline degree.
-    @return interpolated input arrays.
+    @param mf: Multiply factor: length of output arrays is calculated as
+        length of input arrays multiplied by mf
+    @param k: spline degree
+    @return: interpolated input arrays
     """
     ius = InterpolatedUnivariateSpline(lams, dats, k=k)
     outlams = np.linspace(lams[0], lams[-1], len(dats)*mf)
@@ -384,16 +391,16 @@ def get_line(lams, lam, Va=0, width=.9, off=0, cutedg=4, vscl=False,
     Finally, find wavelengths nearest to lam1, lam2 in lams and return
     slice of lams.
     @param lams: array of wavelengths. Must be np.array!
-    @param lam: reference wavelength.
-    @param Va: spectrum shift in km/s, for example, heliocentric correction.
-    @param width: get piece of lams with length equal to 2*width angstroms.
+    @param lam: reference wavelength
+    @param Va: spectrum shift in km/s, for example, heliocentric correction
+    @param width: get piece of lams with length equal to 2*width angstroms
     @param off: spectrum shift in angstroms, for example, systemic velocity
-            shift.
-    @param cutedg: drop given number of pixels on edges of the order.
+        shift
+    @param cutedg: drop given number of pixels on edges of the order
     @param vscl: scale mode. If True, transform wavelength scale to radial
-                 velocities scale.
+        velocities scale
     @return: array of wavelengths or velocities, start and end indices
-            of input array' slice.
+        of input array' slice
     """
     vadlam = (Va * lam) / _C
     if vadlam:
@@ -422,7 +429,7 @@ class PrepareTfits:
     than split each chain into 'orders' with overlap and construct separate
     arrays for data and wavelengths as list of orders.
     @param data: structured numpy array with values containing wavelength, data
-            value and data error with dtype '>f8'. UVES tfits has this format
+        value and data error with dtype '>f8'. UVES tfits has this format
     """
     def __init__(self, data, dtype='>f8', dlen=3, verbose=False):
         self.verbose = verbose
@@ -461,15 +468,13 @@ class PrepareTfits:
 
     def get_split(self, olen=6350, ovr=350, bigval=False, maskbad=True):
         """Split each chain in array to 'orders' with equal length.
-        @param data: raw data from UVES tfits as structured array of
-                wavelengths, counts and errors. Errors are ignored
         @param maskbad: treat values <0 as 'bad' and replace them with previous
-                    value
+            value
         @param bigval: Multiply spectrum values by big constant factor
-                    900000/max(data) instead of 32767/max(data)
-        @param ordlen: 'order' length
+            900000/max(data) instead of 32767/max(data)
+        @param olen: 'order' length
         @param ovr: order's overlap length
-        @return data and fds as lists of orders with equal length
+        @return: data and fds as lists of orders with equal length
         """
         if bigval:
             divr = int(900000./self.maxarr)
@@ -486,8 +491,8 @@ class PrepareTfits:
 
     def split_to_orders(self, chain, lam, ordlen=6350, ovr=350, maskbad=False):
         """Split spectrum chain into 'orders' for Dech software.
-        @param chain: raw data as array of floats/ints.
-        @param lam: wavelengths as array of floats/ints.
+        @param chain: raw data as array of floats/ints
+        @param lam: wavelengths as array of floats/ints
         @param ordlen: order length
         @param ovr: overlap length
         @param maskbad: treat values <0 as 'bad' and replace them with previous
@@ -514,7 +519,7 @@ def split_array(data, ordlen=4000, ovr=100):
     """Split single big array on equal chains.
     @param ordlen: length of one chain ("order")
     @param ovr: length of chains overlapping
-    @return list of chains.
+    @return: list of chains
     """
     ndata = []
     for i in xrange(len(data)/ordlen-1):
@@ -530,7 +535,7 @@ def int_split_array(data, ordlen=4000, ovr=50, divr=30., maskbad=True):
     @param ovr: length of chains overlapping
     @param divr: division coefficient. If zero, skip dividing
     @param maskbad: rewrite bad pixels
-    @return data as list
+    @return: data as list
     """
     if divr:
         data = np.around(data/divr).astype(int)
@@ -549,7 +554,7 @@ def gen_split_array(ordlen=4000, ovr=100, beg=4000, end=6800, step=.05):
     @param beg: start of interval
     @param end: end of interval
     @param step: spacing between values
-    @return list of chains.
+    @return: list of chains
     """
     return split_array(np.arange(beg, end, step), ordlen, ovr)
 
@@ -557,17 +562,17 @@ def gen_split_array(ordlen=4000, ovr=100, beg=4000, end=6800, step=.05):
 class Spectractor:
     """Class for manipulating set of 1D spectra: collect and unify data.
     First we read raw data and fds. Than select spectral orders, shift, cut
-        and flat each of them, finally, write to resulting array.
+    and flat each of them, finally, write to resulting array.
     @param spectra: iterable array (named tuple) with spectra parameters:
-            file paths, observation dates etc. These parameters must be present:
-            id, pth, fdspth (path to fds), plpth (path to ccm.txt), Vr (spectrum
-            shift, e.g. heliocentric correction). Others, e.g. jd, are optional
-            and can be used as part of keys in resulting data.
-            This array can be easily constructed from database table.
+        file paths, observation dates etc. These parameters must be present:
+        id, pth, fdspth (path to fds), plpth (path to ccm.txt), Vr (spectrum
+        shift, e.g. heliocentric correction). Others, e.g. jd, are optional
+        and can be used as part of keys in resulting data.
+        This array can be easily constructed from database table
     @param vscl: get spectrum chains in velocity scale if True (zero velocity
-            wavelength must be present), use wavelengths scale otherwise
+        wavelength must be present), use wavelengths scale otherwise
     @param cuts_dct: dictionary with number of pixels to cut for spectral
-            orders
+        orders
     @param dtype: data type of resulting array, could be list or dict
     @param edglim: number of pixels to cut at the edges of each spectral order
     @type edglim: integer
@@ -591,11 +596,11 @@ class Spectractor:
 
     def get_raw(self, data_pth, fds_pth, pp_pth):
         """Read binary files containing data, wavelength scale (fds) and ccm
-            (file with flatten polynome points).
+        (file with flatten polynome points).
         @param data_pth: path to spectrum data file
         @param fds_pth: path to spectrum dispersion curve file
         @param pp_pth: path to polynome points file
-        @return data array, fds array, polynome points dictionary
+        @return: data array, fds array, polynome points dictionary
         """
         if data_pth.endswith(".200"):
             head, data = read_fits(data_pth)
@@ -614,7 +619,7 @@ class Spectractor:
         return data, fds, polys_dct
 
     def filler(self, key, lams, dats):
-        """Fill self.fdata depending of its dtype (dictionary or list)"""
+        """Fill self.fdata depending of its dtype (dictionary or list)."""
         if self.dtype is dict:
             self.fdata[key] = (lams, dats)
         elif self.dtype is list:
@@ -625,7 +630,7 @@ class Spectractor:
         This is wrapper function for SciPy spline interpolation.
         See help of splrep and splev functions from scipy.interpolate.
         Spline parameters are set to default (cubic spline). If you want
-                to change them, use class variables self.spk and self.sps.
+        to change them, use class variables self.spk and self.sps.
         beg and end indices are used for slicing (cutting) data.
         @param order: 1D array of data
         @param flatdots: points for plotting flat spline. Must be sorted!
@@ -649,14 +654,15 @@ class Spectractor:
         Here we assume that each order has a fds sorted by wavelength.
         After selection each selected order becomes flatten and cut using
         class settings. Resulted chains are collect in self.fdata.
+
         Here we use an opts.Vr property - spectrum shift, for example,
-                heliocentric correction. If self.vshift is True, Vr must be in
-                velocity scale (e.g. km/s), wavelength scale otherwise.
+        heliocentric correction. If self.vshift is True, Vr must be in
+        velocity scale (e.g. km/s), wavelength scale otherwise.
         @param data: data as iterable 2D array
         @param fds: dispersion curve as 2D array of wavelengths
         @param polypt: dictionary with points for flatten polynome plotting
         @param lam: wavelength for converting into velocity scale,
-                if self.vscl is True
+            if self.vscl is True
         @param ish: intensity shift for flatted order
         """
         #if not self.nx:
@@ -700,9 +706,9 @@ class Spectractor:
         @param lams: dispersion curve as array of wavelengths
         @param shift: spectrum shift, e.g. heliocentric correction
         @param cuts: tuple with number of start and end pixels to cut for
-                given order
+            given order
         @return: fds chain of wavelengths or velocities, pixel numbers of
-                limiting wavelengths
+            limiting wavelengths
         """
         if shift and self.vshift:
             # Compute array of shifts for each pixel
@@ -735,7 +741,7 @@ class Spectractor:
         return lams, beg, end
 
     def runner(self, lam=None, ish=None):
-        """Iterate over spectra"""
+        """Iterate over the spectra."""
         for spec in sorted(self.spectra):
             data, fds, polys = self.get_raw(spec.pth, spec.fdpth, spec.plpth)
             if self.cuts_dct and spec.id in self.cuts_dct:
@@ -745,7 +751,7 @@ class Spectractor:
             self.take_orders(data, fds, polys, spec, lam, cuts=cuts, ish=ish)
 
     def get_lims(self, lam=None):
-        """Return boundary wavelengths or velocities depending on self.vscl
+        """Return boundary wavelengths or velocities depending on self.vscl.
         """
         if self.vscl and lam:
             llim = (self.llam - lam) * _C / lam
@@ -758,17 +764,17 @@ class Spectractor:
         """Collect spectra chains containing given wavelength in a given
         spectral window.
         @param lam: wavelength of interest
-        @param wdth: half-width of spectral window in wavelength scale
-        @param shf: shift of the spectral window for placing lam at the center
-                of the window
+        @param width: half-width of spectral window in wavelength scale
+        @param shift: shift of the spectral window for placing lam at the center
+            of the window
         @param ish: relative intensity shift for flatted order
         @param wcut: tolerance parameter for rejecting partly matching orders.
-                The meaning of the parameter is a shift of chain limiting
-                wavelengths before comparing with window limits.
-                So, some chains can be break with wcut<0 and can be processed
-                with wcut>0. Default is 1.
-        @return dictionary or list with spectra chains, values are tuples and
-                keys are parameters. Type of resulting data are given in dtype
+            The meaning of the parameter is a shift of chain limiting
+            wavelengths before comparing with window limits.
+            So, some chains can be break with wcut<0 and can be processed
+            with wcut>0. Default is 1
+        @return: dictionary or list with spectra chains, values are tuples and
+        keys are parameters. Type of resulting data are given in dtype
         """
         if wcut:
             self.wcut = wcut
@@ -785,12 +791,12 @@ class Spectractor:
         @param lam: wavelength of interest
         @param ish: relative intensity shift for flatted order
         @param wcut: tolerance parameter for rejecting partly matching orders.
-                The meaning of the parameter is a shift of chain limiting
-                wavelengths before comparing with window limits.
-                So, some chains can be break with wcut<0 and can be processed
-                with wcut>0. Default is 1.
-        @return dictionary or list with spectra chains, values are tuples and
-                keys are parameters. Type of resulting data are given in dtype
+            The meaning of the parameter is a shift of chain limiting
+            wavelengths before comparing with window limits.
+            So, some chains can be break with wcut<0 and can be processed
+            with wcut>0. Default is 1
+        @return: dictionary or list with spectra chains, values are tuples and
+        keys are parameters. Type of resulting data are given in dtype
         """
         if wcut:
             self.wcut = wcut
@@ -812,8 +818,8 @@ class Spectractor:
         """Collect spectra chains in a given wavelength range.
         If limit is not set, get all orders in this direction.
         @param ish: relative intensity shift for flatted order
-        @return dictionary or list with spectra chains, values are tuples and
-                keys are parameters. Type of resulting data are given in dtype
+        @return: dictionary or list with spectra chains, values are tuples and
+        keys are parameters. Type of resulting data are given in dtype
         """
         self.llam = llam
         self.hlam = hlam
