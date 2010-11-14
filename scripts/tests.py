@@ -12,9 +12,10 @@ import unittest
 import numpy as np
 
 try:
-    from spectractor import *
+    from spectractor.spectractor import *
+    from spectractor.serve import backuper
 except ImportError:
-    print "Cannot import spbin module, check existence!"
+    print "Cannot import spectractor, check existence!"
     raise SystemExit
 
 
@@ -42,7 +43,8 @@ class TestFunctions(unittest.TestCase):
         for spec, fds in ((self.spec, self.fds), (self.spec1d, self.fds1d)):
             write_bin(spec, bin_pth, 'Test 2D spectrum',
                       headlen=hl, fmtdat=fmt, verbose=verbose)
-            h, d = read_bin(bin_pth, headlen=hl, fmtdat=fmt, verbose=verbose)
+            h, d = read_bin(bin_pth, headlen=hl, fmtdat=fmt, npuse=True,
+                    verbose=verbose)
             hh = get_bin_head(bin_pth, headlen=hl, verbose=verbose)
             if verbose:
                 print 'Right length?', len(d) == hh[0],
@@ -55,12 +57,13 @@ class TestFunctions(unittest.TestCase):
             write_fds(fds, fds_pth, verbose=verbose)
             onum, olen = hh[0], hh[1]
             fds = read_fds(fds_pth, onum, olen)
-            wvrang = get_wv_range(fds_pth, onum, olen)
+            wvrang = get_wv_range(fds_pth, onum*olen-4)
             if verbose:
                 print 'Wavelength range:', wvrang
 
     def test_rw_fits(self, hc=6.4, crdnm="DECH-HELIOCORRECTION", verbose=False):
         fts_pth = 'tmp.200'
+        backuper(fts_pth)
         write_fits(self.fspec, fts_pth, 'Test 2D FITS spectrum',
                    helicorr=hc, hist="A lot of history")
         head, dat = read_fits(fts_pth, verbose=verbose)
