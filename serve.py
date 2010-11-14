@@ -69,11 +69,11 @@ def rexper(regexp, path, reflag=None, splitnig=False):
 
 class Walker:
     """Directory walker: search files and dirs in args matching regexp.
-    @param exts: file extensions separated by "|".
+    @param exts: set of file extensions for matching
     @param namrxp: filename regular expression, but without extension.
     @param args: list of paths to files and dirs.
     """
-    def __init__(self, args, exts="rv|ew|100|fds", namrxp=".*", verbose=False):
+    def __init__(self, args, exts=("200", "fds"), namrxp=".*", verbose=False):
         self.files_dct = {}
         self.workdirs = []
         self.path_set, self.spath_set = set(), set()
@@ -86,6 +86,7 @@ class Walker:
                 "^[lns](\d{1})([A-C0-9])(\d{2})[_-]?(\d{2,3})([a-z_]?).*"
         self.rexp_fits = \
                 "^(?:Bn)?(\d{4})(\d{2})(\d{2})[_-]?(\d{3})([spbfdot_]?).*"
+        exts = "|".join(exts)
         self.rxp = re.compile(namrxp+'\.('+exts+')$', re.I | re.U)
         # Pathfinder: find dirs and files in args, append them.
         for arg in args:
