@@ -1,4 +1,3 @@
-#!/usr/bin/env python2
 
 '''This is Spectractor module for some specific calculations.
 With pyMidas we calculate heliocentric correction and
@@ -43,10 +42,10 @@ convcoord = lambda cr, rest: (int(cr), int(divmod(rest*60, 1)[0]),
 class HelVelCor:
     """Calculate heliocentric RV correction for number of observation times.
     @param params: list of observation parameters: date, time, coordinates.
-            See docstrings of methods of this class for details
+        See docstrings of methods of this class for details
     @param dtype: data type of resulting array, must be list or tuple
     @param obscoord: Observatory coordinates. Default is for 6-m telescope
-            (BTA), SAO RAS
+        (BTA), SAO RAS
     """
     def __init__(self, params, dtype, obscoord=None, verbose=False):
         self.params = params
@@ -64,7 +63,7 @@ class HelVelCor:
         """Wrapper for comp/prec MIDAS routine.
         @param date: tuple of year, month and day
         @param time: tuple of hours and minutes
-        @return ra and dec as tuples
+        @return: ra and dec as tuples
         """
         minuhour = (time[0]/24.) + (time[1]/1440.)
         compspec_str = ",".join(map(str, date)) + '.' + \
@@ -115,11 +114,11 @@ class HelVelCor:
     def veltimes(self, objcoords, midprecess=False):
         """Compute heliocentric correction for the set of observation times.
         @param objcoords: Object coordinates with its epoch as tuple:
-                (ra, dec, epoch). ra and dec are also tuples.
+            (ra, dec, epoch). ra and dec are also tuples.
         @param midprecess: Precess coordinates using ESO MIDAS comp/bary
-                routine, use pyephem instead
-        @return list of (spectra) parameters, including heliocentric and
-                barycentric radial velocity correction
+            routine, use pyephem instead
+        @return: list of (spectra) parameters, including heliocentric and
+            barycentric radial velocity correction
         """
         for ID, spec in sorted(self.params.items()):
             date, time, jd = self.getdatime(spec)
@@ -162,7 +161,7 @@ def precess(mjd, objcoords, verbose=False):
     """Precess coords using pyephem from J2000 to mjd.
     @param mjd: Modified julian date: JD - 2400000.5
     @param objcoords: Object coordinates with its epoch as tuple
-    @return ra, dec as tuples
+    @return: ra, dec as tuples
     """
     # Dublin Julian Day = JD - 2415020.0
     #J2000 = 2451545.0 - 2415020.0  <-- it is from libastro sources
