@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 
 '''This module is part of Spectractor. It contains functions for
 managing various files and journals.
@@ -46,12 +45,12 @@ def rexper(regexp, path, reflag=None, splitnig=False):
     """Get parameters from file name using regexp.
     Parameters are: int ID (for example, night number), flag.
     For now, regexp.findall must return 3 values! If not, return (None, None).
-    @param regexp: regular expression describing file name.
-    @param path: path to file.
+    @param regexp: regular expression describing file name
+    @param path: path to file
     @param reflag: tuple of two values. If not empty, flag containing in first
-            value will be replaced to second one.
-    @param splitnig: split ID to tuple of 'night' and spectrum number.
-    @return ID (night number): int or tuple of ints with splitnig, flag.
+        value will be replaced to second one
+    @param splitnig: split ID to tuple of 'night' and spectrum number
+    @return: ID (night number): int or tuple of ints with splitnig, flag
     """
     try:
         bname = os.path.basename(path)
@@ -71,8 +70,8 @@ def rexper(regexp, path, reflag=None, splitnig=False):
 class Walker:
     """Directory walker: search files and dirs in args matching regexp.
     @param exts: set of file extensions for matching
-    @param namrxp: filename regular expression, but without extension.
-    @param args: list of paths to files and dirs.
+    @param namrxp: filename regular expression, but without extension
+    @param args: list of paths to files and dirs
     """
     def __init__(self, args, exts=("200", "fds"), namrxp=".*", verbose=False):
         self.files_dct = {}
@@ -109,8 +108,8 @@ class Walker:
                 print arg, "is not a directory or needed file, continue."
 
     def dirwalker(self):
-        """Walk on workdirs, return list of all subdirs.
-        @return list of subdirectories.
+        """Walk on workdirs, collect subdirectories.
+        @return: list of subdirectories
         """
         if not self.workdirs:
             print "Sorry, no dirs for walk."
@@ -126,7 +125,7 @@ class Walker:
     def walk(self, exclude="excluded"):
         """Walk into working dirs, search some kind of files.
         @param exclude: if it in file path, exclude file. Useful when
-                we want exclude some subdir.
+            we want to exclude some subdir
         """
         if not self.workdirs:
             if not self.files_dct:
@@ -146,13 +145,13 @@ class Walker:
         Here we assume, that file name contains information about ID
         (night number, number of spectrum) and flag. Others will be broken
         (or you must change default regular expression).
-        @param ext: select file type, must be file extension.
+        @param ext: select file type, must be file extension
         @param filtr: selecting only given flags, exclude others. Select all
-                when filtr in ("all", None).
+            when filtr in ("all", None)
         @param reflag: tuple of two values. If not empty, flag containing in
-                first value will be replaced to second one.
-        @param splitnig: split ID to tuple of 'night' and spectrum number.
-        @return: list of tuples with 'night', flag and path to file.
+            first value will be replaced to second one
+        @param splitnig: split ID to tuple of 'night' and spectrum number
+        @return: list of tuples with 'night', flag and path to file
         """
         try:
             files = self.files_dct[ext]
@@ -179,20 +178,20 @@ class Walker:
         of ID in journal keys, get spectrum parameters from journal and append
         this data to resulting list.
         @param journal: journal dictionary with spectra IDs as keys and spectra
-        parameters (for example, JYear, MJD, Spectrograph key, limiting
-                wavelengths, S/N etc) as values.
-        @param ext: select file type, must be file extension.
-        @param iflag: Flags to select. Can be a string, if flag is one symbol.
-        @param splitnig: split 'night' to tuple of night and spectrum number.
+            parameters (e.g. JYear, MJD, spectrograph key, limiting
+            wavelengths, S/N etc) as values
+        @param ext: select file type, must be file extension
+        @param iflag: Flags to select. Can be a string, if flag is one symbol
+        @param splitnig: split 'night' to tuple of night and spectrum number
         @return: list of tuples with ID ('night'), flag, path to file and
-                other parameters. Currently parameters are fds path, dictionary
-                of points, defining the flatten polynome, heliocentric
-                correction and S/N value.
+            other parameters. Currently parameters are fds path, dictionary
+            of points, defining the flatten polynome, heliocentric
+            correction and S/N value
         """
         try:
             files = self.files_dct[ext]
         except KeyError:
-            print >> sys.stderr, "Sorry,", ext, "files seem not to exist."
+            print >> sys.stderr, "Sorry,", ext, "files seem not to exist"
             return self.spath_set
         rexp = re.compile(self.rexp_spec + ext + '$', re.I | re.U)
         if not journal:
