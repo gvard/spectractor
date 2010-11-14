@@ -7,9 +7,10 @@ managing various files and journals.
 '''
 
 import re
-import os, sys, shutil
+import os, sys, shutil, glob
 import collections
 
+from spectractor import get_wv_range
 data_dir, out_dir = 'data', 'out'
 
 
@@ -80,6 +81,7 @@ class Walker:
         self.verbose = verbose
         # rexp_spec contains 3 groups: night number, spectrum number and flag.
         self.rexp_spec = "^[a-z_]{0,3}(\d{3})(\d{1,3})[-_]?([a-z_\-]*).*\."
+        self.fdsrexp = re.compile(self.rexp_spec+'fds'+'$', re.I | re.U)
         # rexp_mt and rexp_fits contain groups for date (year, month, day),
         # spectrum number and flag.
         self.rexp_mt = \
@@ -169,7 +171,7 @@ class Walker:
             print >> sys.stderr, "No", ext, "files in path!"
         return self.path_set
 
-    def select_spectra(self, journal, ext='200', iflag=None, splitnig=False):
+    def select_spectra(self, journal, ext='fits', iflag=None, splitnig=False):
         """Select data, get ID ('night') and flag from filename, collect paths.
         Here we assume, that file name contains information about ID
         (night number, number of spectrum) and flag. Others will be broken
@@ -187,35 +189,77 @@ class Walker:
                 of points, defining the flatten polynome, heliocentric
                 correction and S/N value.
         """
-        Sp = collections.namedtuple("Sp", "id flag pth fdpth plpth Vr sn")
         try:
             files = self.files_dct[ext]
         except KeyError:
             print >> sys.stderr, "Sorry,", ext, "files seem not to exist."
             return self.spath_set
         rexp = re.compile(self.rexp_spec + ext + '$', re.I | re.U)
+        if not journal:
+            self.journal = self.mk_dummy_journal(rexp, files)
+        else:
+            self.journal = journal
+        Sp = collections.namedtuple("Sp", "id flag pth fdpth plpth Vr sn jy jd")
         for path in files:
             night, flag = rexper(rexp, path, reflag=False, splitnig=splitnig)
-            if (flag and iflag) and flag not in iflag:
+            if flag and iflag and flag not in iflag:
                 if self.verbose:
                     print "Exclude", night, "with flag", flag
                 continue
-            if night not in journal:
+            if night not in self.journal:
                 continue
-            jy, mjd, spc, lwv, hwv, Vr, sn, fdsnum = journal[night]
+            jy, mjd, spc, lwv, hwv, Vr, sn, fdsnam = self.journal[night]
+            #jy, mjd, spc, lwv, hwv, Vr, sn, fdsnum = self.journal[night]
             pls_pth = os.path.splitext(path)[0]+'.ccm.txt'
             if not os.path.isfile(pls_pth):
-                if self.verbose:
-                    print "Exclude", path, "with no ccm.txt"
+                print >> sys.stderr, "Exclude", path+": no ccm.txt file"
                 continue
-            #night = int(str(spe[0][0]) + str(spe[0][1]).zfill(3))
-            fds_pth = os.path.join(os.path.dirname(path),
-                        str(night)[:3]+str(fdsnum).zfill(3)+'.fds')
+            fds_pth = os.path.join(os.path.dirname(path), str(fdsnam))
+            if not os.path.isfile(fds_pth):
+                fds_pth = self.find_fds(path, str(night).zfill(6))
+                if not fds_pth:
+                    print >> sys.stderr, "Exclude", path+": no fds file"
+                    continue
             if self.verbose:
-                print "Append", night, "with corr", Vr
-            params = Sp(night, flag, path, fds_pth, pls_pth, Vr, sn)
+                print "Append", night, flag, "with shift", Vr
+            params = Sp(night, flag, path, fds_pth, pls_pth, Vr, sn, jy, mjd)
             self.spath_set.add(params)
         return self.spath_set
+
+    def mk_dummy_journal(self, rexp, files):
+        """Make dummy journal with paths to fds and wavelength limits
+        """
+        journal = {}
+        for path in files:
+            night, flag = rexper(rexp, path, reflag=False, splitnig=False)
+            if night not in journal:
+                fds_pth = self.find_fds(path, str(night).zfill(6))
+                if not fds_pth:
+                    print "Exclude", path
+                    continue
+                lwv, hwv = get_wv_range(fds_pth)
+                fds_pth = os.path.basename(fds_pth)
+                #jy, mjd, spc, lwv, hwv, Vr, sn, fdsnam
+                journal[night] = [0, 0, '', lwv, hwv, 0, 1, fds_pth]
+        return journal
+
+    def find_fds(self, path, night):
+        """Try to find fds, using path to file with spectrum.
+        We assume that fds and spectrum name are similar and search fds
+        given at the same night, that of spectrum.
+        """
+        fdses = {}
+        nig, num = night[:3], int(night[3:])
+        rxp = os.path.dirname(path)+os.sep+'*'+nig+'*'+'.fds'
+        fds_pths = glob.glob(rxp)
+        if not fds_pths:
+            return
+        for fdpth in fds_pths:
+            fdnam = os.path.basename(fdpth)
+            night, img, flag = self.fdsrexp.findall(fdnam)[0]
+            if img:
+                fdses[abs(num-int(img))] = fdpth
+        return fdses[min(fdses)]
 
     def select_images(self):
         """Select image files with filenames matching rexp_fits or rexp_mt.
