@@ -7,6 +7,7 @@ managing various files and journals.
 
 import re
 import os, sys, shutil, glob
+import cPickle
 import collections
 
 from spectractor import get_wv_range
@@ -288,3 +289,50 @@ class Walker:
                 params = Sp(pth, num, date, flag, keymode)
                 self.path_set.add(params)
         return self.path_set
+
+
+def read_journal(j_pth): return cPickle.load(open(j_pth))
+
+
+def mod_journal(journal, sn=10, rvc=True, rvcorr_dct=None, instr=None,
+                lams=None, jd=None, verbose=False):
+    """Exclude or correct items in journal depending on input parameters.
+    @param journal: dictionary with spectra main parameters
+    @param sn: limiting signal-to-noise ratio value: exclude all spectra with
+        lower S/N
+    @param rvc: Set Va shift to zero. Useful for telluric line measurements
+    @param rvcorr_dct: Dictionary of heliocentric velocity corrections,
+        defined, for example, by telluric lines measurements
+    @param instr: Select spectra obtained with given spectrograph
+    @param lams: Exclude all spectra, which no contain given vawelength
+    @param jd: Exclude all spectra, which obtained earlier, than given JYear
+        value
+    """
+    if not rvc:
+        print "Set Va to zero"
+    for nig, dat in journal.items():
+        jy, mjd, spc, lwv, hwv, Vr, jsn, fn = dat[:8]
+        if sn and jsn < sn:
+            if verbose:
+                print "Exclude", nig, "S/N", sn
+            del journal[nig]
+            continue
+        if instr and spc not in instr:
+            if verbose:
+                print "Exclude", nig, "instr", instr
+            del journal[nig]
+            continue
+        if lams and (lwv > lams[1] or hwv < lams[0]):
+            if verbose:
+                print "Exclude", nig, "wv limits", lwv, hwv
+            del journal[nig]
+            continue
+        if jd and jy < jd:
+            if verbose:
+                print "Exclude", nig, "JD", jd
+            del journal[nig]
+            continue
+        if not rvc:
+            journal[nig][5] = 0
+        if rvcorr_dct and nig in rvcorr_dct:
+            journal[nig][5] += rvcorr_dct[nig]
