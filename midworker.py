@@ -4,9 +4,11 @@ With pyMidas we calculate heliocentric correction and
 with pyephem we calculate precession.
 '''
 
-import sys
+import os, sys, shutil
 from datetime import datetime
 from math import pi
+
+import numpy as np
 
 try:
     from pymidas import midas
@@ -32,11 +34,26 @@ except ImportError, err:
     print >> sys.stderr, str(err) + ": pyephem module required ",
     print >> sys.stderr, "for coordinates precessing."
 
+try:
+    import pyfits
+except ImportError, err:
+    print >> sys.stderr, str(err), "PyFITS is required for read and write FITS"
+
 
 spacer = lambda *args: " %s " % ' '.join(map(str, args))
 commer = lambda arg: ",".join(map(str, arg))
 convcoord = lambda cr, rest: (int(cr), int(divmod(rest*60, 1)[0]),
                                round(divmod(rest*60, 1)[1]*60, 3))
+
+def clocker(val, divc=1.):
+    """Convert float value to tuple of (int h, int m, float s).
+    Useful for coordinates and times.
+    @param divc: division coefficient for val
+    """
+    h, rest = divmod(val/divc, 1)
+    m, rest = divmod(rest * 60, 1)
+    s = round(rest * 60, 2)
+    return int(h), int(m), s
 
 
 class HelVelCor:
@@ -181,6 +198,298 @@ def precess(mjd, objcoords, verbose=False):
     if verbose:
         print "Precess to", mjd, ra, dec, "with J2000 coords", objcoords
     return ra, dec
+
+
+class Preparer:
+    """Class for image processing with MIDAS, against MIDAS sripting language =)
+    We use MIDAS routines through pyMidas, but replace it with numpy and pyfits,
+    if it is possible.
+
+    This code also heavily depends of some specific characteristics of SAO RAS
+    spectral archive, mostly on spectra taken on Nesmyth Echelle Spectrograph of
+    6-meter telescope.
+    It is not pipeline package, but a set of non-interactive methods for packet
+    processing. It contains methods for averaging images, substracting bias
+    frame etc.
+    @param dest_dir: destination dir for moving processed fits files. Could be
+        omitted.
+    @param usedisp: use Midas display for loading images using Midas routines
+    """
+    def __init__(self, dest_dir="arch", usedisp=False, verbose=False):
+        self.dest_dir = dest_dir
+        self.verbose = verbose
+        self.usedisp = usedisp
+        self.fixfitslog = {True: 'fix', False: 'silentfix'}[self.verbose]
+        self.print_str = "[01;31m%s not found in header! Set it to zero.[0m"
+        # Define keys, presented in FITS headers:
+        self.stdkeys = ['AUTHOR', 'REFERENC', 'DATE', 'ORIGIN', 'DATE-OBS',
+            'TELESCOP', 'INSTRUME', 'OBSERVER', 'OBJECT', 'EQUINOX', 'EPOCH']
+        self.nonstdkeys = ['OBSERVAT', 'CHIPID', 'DETNAME', 'CCDTEMP',
+                           'P_DEWAR', 'SEEING', 'PROG-ID']
+        self.otherkeys = ['WIND', 'T_OUT', 'T_IN', 'T_MIRR', 'PRES',
+                           'ST', 'MT', 'FOCUS']
+        self.journal_dct = {}
+        self.obs_dct = {}
+        self.sep, self.postfix, self.ext = '_', '.', 'fits'
+        self.key_dct = {"bias": 'b', "thar": 't', "flatfield": 'f', "ll": 'f',
+                        "sky": 's'}
+        self.keyset = lambda key: self.key_dct.get(key.lower()) \
+                if self.key_dct.get(key.lower()) else 'o'
+        self.trygetkey = lambda head, *args: filter(head.has_key, args)
+        self.seper = lambda fstr, h, m, s: \
+                "%s" % ":".join(["%02d" % h, "%02d" % m, fstr % s])
+
+    def prepare(self, files, logonly=False, crop=True, rot=True,
+                badrow=False, cleanhead=True, filmove=True):
+        """Method for packet preparing and/or logging of raw images,
+        mostly taken on spectrographs of 6-meter telescope.
+        @param files: list of raw image parameters with its paths
+        @param logonly: create only log, without image processing.
+        @param crop: crop each image depending on its shape, which is
+            determine used CCD chip
+        @param rot: rotate image clockwise
+        @param badrow: mask bad rows on NES CCD chip
+        @param cleanhead: remove empty strings in fits headers
+        @param filmove: move or not source files (raw images) to
+                self.arch_dir, after they are have been processed
+        """
+        self.crop = crop
+        self.rot = rot
+        self.badrow = badrow
+        if files and not os.path.isdir(self.dest_dir):
+            os.mkdir(self.dest_dir)
+        for (file_pth, num, date, fflag, keymode) in sorted(files):
+            if self.verbose:
+                print pyfits.info(file_pth)
+            print "Open file", file_pth
+            curfts = pyfits.open(file_pth) #mode="update"
+            head = curfts[0].header
+            flag = self.keyset(head.get('object'))
+            try:
+                self.logger(head, int(num), date, flag, keymode)
+            except (ValueError, TypeError, AttributeError):
+                print "Trying to fix", file_pth, "FITS header."
+                curfts.verify(self.fixfitslog)
+                self.logger(head, int(num), date, flag, "str")
+            if logonly:
+                continue
+            if cleanhead:
+                # Clean header - delete empty strings:
+                del head['']
+                #head.add_blank(after='SHSTAT')
+            # Write header to FITS object (not to disk!)
+            curfts[0].header = head
+            date = "".join((str(date[0]), str(date[1]).zfill(2),
+                                          str(date[2]).zfill(2)))
+            newname = os.path.join(self.dest_dir, "".join((date, self.sep,
+                        num, flag, self.postfix, self.ext)))
+            self.processdata(curfts, newname)
+            if filmove:
+                shutil.move(file_pth, self.dest_dir)
+            self.midprepare("l"+num+".bdf", newname, rot=self.rot)
+            if self.verbose:
+                print pyfits.info(newname)
+
+    def processdata(self, curfts, newname):
+        """Process image data: crop, rotate, save."""
+        data = curfts[0].data
+        dshape = data.shape
+        if dshape[0] == 2052:  # NES chip
+            x1, x2, y1, y2 = 4, 1992, 4, 2039
+            #Resulting shape must be (2035, 1988)
+        elif dshape[0] == 2068: # LPR chip
+            x1, x2, y1, y2 = 0, 2048, 2, 2048
+        else:  # Pfes and Lynx 1Kx1K chip
+            x1, x2, y1, y2 = 5, 1040, 2, 1157
+        if self.crop:
+            #Replacement for
+            #midas.extractImag({name} = {namef}[@{x1},@{y1}:@{x2},@{y2}])
+            data = data[y1:y2, x1:x2]
+        #if rot and dshape[0] >= 2052:
+            #data = np.rot90(data) # k=3
+        #if badrow:
+            # @@ badrow {name}
+            #data = self.badrow(data)
+        # Write result
+        curfts[0].data = data
+        curfts[0].scale('int16', 'old')
+        try:
+            curfts.writeto(newname)
+        except IOError:
+            shutil.move(newname,
+                        newname.replace(".fits", "-backup.fits"))
+            curfts.writeto(newname)
+        except pyfits.core.VerifyError:
+            curfts.verify(self.fixfitslog)
+            curfts.writeto(newname)
+        curfts.close()
+
+    def midprepare(self, bdf_pth, newname, rot=True):
+        """Make a MIDAS procedures for preparing image.
+        Creating Midas image file (bdf), rotate image, write descriptors,
+        load it on display.
+        @param rot: rotate bdf image using rotate/clock Midas routine
+        """
+        midas.indiskFits(newname, bdf_pth)
+        # TODO Maybe it is better to use numpy for rotate/flip?
+        if rot:
+            midas.rotateCloc(bdf_pth, "tmp", "1")
+            shutil.move('tmp.bdf', bdf_pth)
+        # TODO midas.flipImag?
+        midas.writeDesc(bdf_pth, 'start/d/1/2 1.,1.')
+        midas.writeDesc(bdf_pth, 'step/d/1/2 1.,1.')
+        #midas.do('@@ badrow ' + bdf_pth)
+        if self.usedisp:
+            midas.do('@@ lo_ima ' + bdf_pth)
+
+    def modkey(self, val, keymode=False):
+        """Modify input value, depending on keymode.
+        Because of different standards of writing FITS headers in SAO RAS,
+        we need to extract the right value. For example, val maybe string,
+        float(string) or int(float * const).
+        @param keymode: False (None), 'flstr' or 'str'. Define, how we can
+            extract correct information from given value
+        """
+        if val and not keymode and 3000 < abs(val) < 1250000:
+            val = val / 3600.
+        elif keymode == "flstr": # or abs(val) > 1250000:
+            val = str(val)
+            val = float(val[-4:])/3600 + int(val[-6:-4])/60. + int(val[:-6])
+        elif keymode == "str":
+            if type(val) is str and " " in val:
+                val = val.split()
+            elif type(val) is str and ":" in val:
+                val = val.split(":")
+            val = float(val[2])/3600 + int(val[1])/60. + int(val[0])
+        return val
+
+    def pickhead(self, head, keymode, *args):
+        """Look into FITS header for existance of keys, return head[key].
+        First, we look on existence of keys, containing in args.
+        Second, we get existing value from header or return zero.
+        """
+        key = self.trygetkey(head, *args)
+        if key:
+            val = head.get(key[0])
+        else:
+            print self.print_str % " ".join(args)
+            return 0
+        if keymode == "raw":
+            return val
+        else:
+            return self.modkey(val, keymode=keymode)
+
+    def logger(self, head, num, date, flag, keymode=False):
+        """Create an observation log for input images.
+        Search for some specific keys in given fits header and write it
+        to 'journal': journal_dct and obs_dct dictionaries.
+        """
+        # Read coords
+        try:
+            ra = self.pickhead(head, keymode, 'RA')
+            if not keymode:
+                ra = ra / 15.
+            dec = self.pickhead(head, keymode, 'DEC')
+            az  = self.pickhead(head, keymode, 'A_PNT', 'AZIMUTH')
+            zen = self.pickhead(head, keymode, 'Z_PNT', 'ZDIST', 'ZENDIST')
+            if type(az) in (int, float) and az < 0:
+                az += 360
+            sidertime_start = self.pickhead(head, keymode, 'ST')
+            ra, dec = clocker(ra), clocker(dec)
+            az, zen = clocker(az), clocker(zen)
+        except (TypeError, AttributeError):
+            ra, dec, az, zen = (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)
+        # 199xxxxx(DVD01) 20030810(DVD07)--20080331(DVD31), since 20081103_002
+        wind = self.pickhead(head, 'raw', 'WIND')
+        # This block in 20030810(DVD07)--20080331(DVD31), since 20081103_002
+        moscowtime_start = self.pickhead(head, 'raw', 'MT') / 3600.
+        focus = self.pickhead(head, 'raw', 'FOCUS')
+        t_out = self.pickhead(head, 'raw', 'T_OUT')
+        t_in = self.pickhead(head, 'raw', 'T_IN')
+        t_mirr = self.pickhead(head, 'raw', 'T_MIRR')
+        pres = self.pickhead(head, 'raw', 'PRES')
+        # HUMD in 20070902(DVD28)--20080331(DVD31), since 20081103_002
+        hum = self.pickhead(head, 'raw', 'HUMD')
+        # JD since 20080422(DVD31)
+        jd = head.get('JD')
+        # keymode is here!
+        self.journal_dct['KEYMODE'] = [keymode]
+        for key in (self.nonstdkeys + self.stdkeys):
+            if key not in self.journal_dct and head.get(key):
+                self.journal_dct[key] = [head.get(key),]
+            elif head.get(key) and head.get(key) not in self.journal_dct[key]:
+                self.journal_dct[key].append(head.get(key))
+            elif key not in self.journal_dct and not head.get(key):
+                self.journal_dct[key] = []
+        # Block of standard "observation" keys
+        time_end = self.pickhead(head, 'raw', 'TM_END') / 3600.
+        try:
+            time_start = self.pickhead(head, 'raw', 'TM-START',
+                                                    'TM_START') / 3600.
+            time = clocker(time_start)
+        except TypeError:
+            time = self.pickhead(head, 'raw', 'TM-START', 'TM_START')
+        exp = int(self.pickhead(head, 'raw', 'EXPTIME'))
+        if flag == "b" and exp != 0:
+            flag = "o"
+        dateobs = head.get('DATE-OBS')
+        obj = self.pickhead(head, 'raw', 'OBJECT')
+        if self.verbose:
+            self.warner(exp, obj, num)
+        self.obs_dct[num] = [date, flag, obj, time, exp, ra, dec,
+                az, zen, dateobs]
+
+    def warner(self, exp, obj, num):
+        """Warn about some problems."""
+        if exp == 0 and str(obj).lower() != "bias":
+            print "Wrong object name:", obj, "with exp=0 in spectrum", num
+        #if head.get('CCDTEMP') != None and -103 > head.get('CCDTEMP') > -97:
+            #print "incorrect CCDTEMP", ccdtemp, "in spectrum number", num
+
+    def savelog(self, filenam="night", wdir=""):
+        """Save observation log to file."""
+        if os.path.isfile(os.path.join(wdir, filenam + ".log")):
+            shutil.move(os.path.join(wdir, filenam + ".log"),
+                        os.path.join(wdir, filenam + ".old"))
+        obslog = open(os.path.join(wdir, filenam+".log"), "w")
+        for num, val in self.obs_dct.items():
+            obsstr = self.logstringer(num, val)
+            print >> obslog, obsstr
+        obslog.close()
+
+    def savejournal(self, filenam="journal", wdir=""):
+        """Save observation journal to file."""
+        journpth = os.path.join(wdir, filenam + ".log")
+        if os.path.isfile(journpth):
+            shutil.move(journpth, os.path.join(wdir, filenam + ".old"))
+        journ = open(journpth, 'w')
+        for key, val in sorted(self.journal_dct.items()):
+            #print "{0:8s}: {1:s}".format(key, ", ".join(map(str, sorted(val))))
+            if not val or val == [" "]:
+                continue
+            elif key in ("CCDTEMP", "P_DEWAR") and val:
+                val = [str(np.mean(val))]
+            elif key in ("DATE-OBS", "ORIGIN", "AUTHOR", "OBSERVER",
+                         "SEEING") and val:
+                val = [", ".join(map(str, val))]
+            print >> journ, "%9s %s" % (key, " ".join(map(str, val)))
+            if self.verbose:
+                print "%8s: %s" % (key, ", ".join(map(str, sorted(val))))
+        journ.close()
+
+    def logstringer(self, num, val):
+        """Make a string for given parameters of observation log."""
+        date, flag, obj, time, exp, ra, dec, az, zen, dateobs = val
+        date = "".join((str(date[0]), str(date[1]).zfill(2),
+                                     str(date[2]).zfill(2)))+" "+flag
+        #date = "".join(map(str, date))+" "+flag
+        time = self.seper("%02d", *time)
+        ra = self.seper("%04.1f", *ra)
+        dec = self.seper("%04.1f", *dec)
+        az = self.seper("%04.1f", *az)
+        zen = self.seper("%04.1f", *zen)
+        return "%3d %13s %15s %8s %4d %11s %11s %11s %10s %s" % (num,
+                date, obj, time, exp, ra, dec, az, zen, dateobs)
 
 
 class MidWorker:
