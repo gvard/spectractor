@@ -217,15 +217,19 @@ class Walker:
         return self.spath_set
 
     def select_images(self):
+        """Select image files with filenames matching rexp_fits or rexp_mt.
+        Currently only fits, fts and mt file extensions are supported.
+        """
         rexpfts = re.compile(self.rexp_fits, re.I | re.U)
         rexpmt = re.compile(self.rexp_mt, re.I | re.U)
         Sp = collections.namedtuple("Sp", "pth num date flag keymode")
         for ext in self.files_dct:
             for pth in self.files_dct[ext]:
                 fnam = os.path.basename(pth)
-                if ext in ("fits", "fts") and len(rexpfts.findall(fnam)):
+                if ext.lower() in ("fits", "fts") \
+                                        and len(rexpfts.findall(fnam)):
                     year, mon, day, num, flag = rexpfts.findall(fnam)[0]
-                elif ext == "mt" and len(rexpmt.findall(fnam)):
+                elif ext.lower() == "mt" and len(rexpmt.findall(fnam)):
                     year, mon, day, num, flag = rexpmt.findall(fnam)[0]
                     mon = str(int(mon, 16)).zfill(2)
                     year = str(2000 + int(year)) if int(year) else "2010"
