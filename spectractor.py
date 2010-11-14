@@ -780,8 +780,6 @@ class Spectractor:
             self.wcut = wcut
         self.llam = lam - width - shift
         self.hlam = lam + width - shift
-        #self.mkey = lambda spec, x: " ".join((str(lam),
-                #str(round(spec.jd, 3)), str(spec.id), str(x)))
         self.runner(lam=lam, ish=ish)
         return self.fdata
 
@@ -809,8 +807,6 @@ class Spectractor:
             self.hlam = (hlim * lam)/_C + lam
         else:
             return
-        #self.mkey = lambda spec, x: " ".join((str(lam),
-                #str(round(spec.jd, 3)), str(spec.id), str(x)))
         self.runner(lam, ish=ish)
         return self.fdata
 
