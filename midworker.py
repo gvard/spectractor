@@ -60,7 +60,7 @@ class HelVelCor:
     """Calculate heliocentric RV correction for number of observation times.
     @param params: list of observation parameters: date, time, coordinates.
         See docstrings of methods of this class for details
-    @param dtype: data type of resulting array, must be list or tuple
+    @param dtype: data type of resulting array, must be dict or list
     @param obscoord: Observatory coordinates. Default is for 6-m telescope
         (BTA), SAO RAS
     """
@@ -217,7 +217,7 @@ class Preparer:
     """
     def __init__(self, dest_dir="arch", usedisp=False, verbose=False):
         self.dest_dir = dest_dir
-        self.verbose = verbose
+        self.verbose = bool(verbose)
         self.usedisp = usedisp
         self.fixfitslog = {True: 'fix', False: 'silentfix'}[self.verbose]
         self.print_str = "[01;31m%s not found in header! Set it to zero.[0m"
@@ -312,7 +312,7 @@ class Preparer:
             #data = self.badrow(data)
         # Write result
         curfts[0].data = data
-        curfts[0].scale('int16', 'old')
+        curfts[0].scale('float32', 'old') # int16
         try:
             curfts.writeto(newname)
         except IOError:
