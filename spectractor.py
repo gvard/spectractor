@@ -25,7 +25,7 @@ except ImportError, err:
 
 _C = 299792.458
 
-def read_bin(bin_pth, headlen=10, fmtdat='h', npuse=False, verbose=False):
+def read_bin(bin_pth, headlen=10, fmtdat='h', npuse=True, verbose=False):
     """Read binary file, for example *.100 files.
     100 format is a simple representation of 2D array with short integer values.
     The structure of given binary files: First 'headlen' bytes: Object name.
@@ -46,7 +46,7 @@ def read_bin(bin_pth, headlen=10, fmtdat='h', npuse=False, verbose=False):
     if verbose:
         print "binary file header:", objname, ord_num, ord_len
     if npuse:
-        data = np.zeros((ord_num, ord_len), int)
+        data = np.zeros((ord_num, ord_len), np.int32)
     else:
         data = [[] for _ in xrange(ord_num)]
     for i in xrange(ord_num):
@@ -150,13 +150,14 @@ def write_fits(data, fits_pth, objname="", byteswap=True, helicorr=0, hist=""):
     for converting array of floats is use following commands:
 
         >>> import numpy as np
-        >>> data = np.around(data).astype(int)
+        >>> data = np.around(data).astype(np.int32)
 
     @param data: 2D array. may be list of lists or numpy.array with NAXIS=2
     @param byteswap: True for "200" format, False for writing normal FITS
     @param objname: object name. If not empty, write it to card OBJECT
     @param hist: history. If not empty, write it to card HISTORY
     @param helicorr: Write heliocentric correction in header, if byteswap
+    @raise IOError: file fits_pth already exist.
     """
     data = np.array(data).byteswap(byteswap)
     if not byteswap:
