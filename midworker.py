@@ -497,6 +497,7 @@ class MidWorker:
     """
     def __init__(self, verbose=False):
         self.verbose = bool(verbose)
+        self.ext = 'bdf'
 
     def plot(self, bnam, plt="row", cut=2010, over=False):
         """Wrapper for Midas functions plot/row, plot/colu"""
@@ -516,7 +517,7 @@ class MidWorker:
 
     def loima(self, img, chan=0):
         """Load image with autocuts"""
-        if not (os.path.isfile(img) or os.path.isfile(img+'.bdf')):
+        if not (os.path.isfile(img) or os.path.isfile(img+'.'+self.ext)):
             return None, None
         nx, ny = self.readesc(img)
         dx, dy = map(int, midas.writeOut('{ididev(2)} {ididev(3)}'))
@@ -559,7 +560,7 @@ class MidWorker:
             namlst = []
         for bnum in xrange(beg, end+1):
             bnam = 'l'+str(bnum).zfill(3) + pfix
-            if os.path.isfile(bnam+'.bdf'):
+            if os.path.isfile(bnam+'.'+self.ext):
                 if k:
                     if self.verbose:
                         print "Add first", bnam, "image"
@@ -620,10 +621,10 @@ class MidWorker:
         """Substract bias from images"""
         for bnum in xrange(beg, end+1):
             bnam = 'l'+str(bnum).zfill(3)
-            if os.path.isfile(bnam+'.bdf'):
+            if os.path.isfile(bnam+'.'+self.ext):
                 nameo = bnam + pfix
                 midas.computeImag(nameo, "=", bnam, "-", biasname)
                 midas.statistImag(nameo)
                 self.loima(nameo)
                 midas.copyDd(bnam, "*,3", nameo)
-                os.remove(bnam+'.bdf')
+                os.remove(bnam+'.'+self.ext)
