@@ -234,7 +234,7 @@ class Preparer:
         self.key_dct = {"bias": 'b', "thar": 't', "flatfield": 'f', "ll": 'f',
                         "sky": 's'}
         #self.imgcut_dct = {2052: (4, 1992, 4, 2039), # NES 2052x2052 chip
-        self.imgcut_dct = {2052: (3, 2048, 2, 2042), # NES 2052x2052 chip
+        self.imgcut_dct = {2052: (3, 2048, 4, 2039), # NES 2052x2052 chip
         # Resulting shape after cut for NES images with cuts (4, 1992, 4, 2039)
         # will be (2035, 1988). NES with full use: (3, 2048, 0, 2046),
         # shape will be (2045, 2046)
@@ -309,7 +309,7 @@ class Preparer:
         data = curfts[0].data
         dshape = data.shape
         if self.badrow:
-            data = self.nesbadrow(data)
+            self.nesbadrow(data)
         if self.crop:
             if dshape[0] in self.imgcut_dct:
                 x1, x2, y1, y2 = self.imgcut_dct[dshape[0]]
@@ -317,26 +317,25 @@ class Preparer:
                 x1, x2, y1, y2 = 0, dshape[0], 0, dshape[1]
             #midas.extractImag({name} = {namef}[@{x1},@{y1}:@{x2},@{y2}])
             data = data[y1:y2, x1:x2]
-        #if rot and dshape[0] >= 2052:
-            #data = np.rot90(data) # k=3
-        #if badrow:
-            # @@ badrow {name}
-            #data = self.badrow(data)
+        if self.rot and dshape[0] >= 2052:
+            data = np.rot90(data)
+        #if self.flip:
+            ## flip for Lynx/Pfes
+            #data = np.flipud(data)
         # Write result
         curfts[0].data = data
         curfts[0].scale('float32', 'old') # int16
+        if os.path.isfile(newname):
+            bcknam = newname.replace("."+self.ext, "-backup."+self.ext)
+            shutil.move(newname, bcknam)
         try:
-            curfts.writeto(newname)
-        except IOError:
-            shutil.move(newname,
-                        newname.replace(".fits", "-backup.fits"))
             curfts.writeto(newname)
         except pyfits.core.VerifyError:
             curfts.verify(self.fixfitslog)
             curfts.writeto(newname)
         curfts.close()
 
-    def nesbadrow(self, d, mm=9, lowcut=-25):
+    def nesbadrow(self, d, lowcut=-25, hilim=600):
         """Mask bad pixels in raw images taken with Uppsala NES chip.
         """
         for row in self.nesbadrows:
@@ -349,26 +348,28 @@ class Preparer:
         d[:, 2014] = (d[:, 2013] + d[:, 2015]) / 2
         d[:, 2027] = (d[:, 2026] + d[:, 2028]) / 2
         for i in xrange(2036, 2038):
-            d[i, :2052-2030] = (d[i-1, :2052-2030] + d[i-2, :2052-2030])/2
+            d[i, :22] = (d[i-1, :22] + d[i-2, :22])/2
             d[i, 1337:1569] = (d[i-1, 1337:1569] + d[i-2, 1337:1569])/2
         for i in xrange(2038, 2040):
-            d[i, :2052-2028] = (d[i-1, :2052-2028] + d[i-2, :2052-2028])/2
+            d[i, :24] = (d[i-1, :24] + d[i-2, :24])/2
             d[i, 1337:1569] = (d[i-1, 1337:1569] + d[i-2, 1337:1569])/2
         for i in xrange(2040, 2042):
-            d[i, :2052-2026] = d[i-1, :2052-2026]
+            d[i, :26] = d[i-1, :26]
             d[i, 1125:1692] = (d[i-1, 1125:1692] + d[i-2, 1125:1692])/2
         for i in xrange(2042, 2044):
-            d[i, :2052-2018] = d[i-1, :2052-2018]
-            d[i, 2052-965:2052-25] = d[i-1, 2052-965:2052-25]
-        for i in xrange(2044, 2046):
-            d[i, :2052-2005] = d[i-1, :2052-2005]
-            d[i, 2052-1130:2052-15] = d[i-1, 2052-1130:2052-15]
-        zz = d[:230, 1989:]
-        med = np.median(zz)
-        zz[np.where(zz > med*mm)] = med
-        d[:230, 1989:] = zz
+            d[i, :34] = d[i-1, :34]
+            #d[i, 1087:27] = d[i-1, 1087:27]
+        #for i in xrange(2044, 2046):
+            #d[i, :2052-2005] = d[i-1, :2052-2005]
+            #d[i, 2052-1130:2052-15] = d[i-1, 2052-1130:2052-15]
+        #zonlim = (0, 250, 1979) #[31:96, 1988:2040]
+        zonlim = (1, 118, 1988)
+        zone = d[zonlim[0]:zonlim[1], zonlim[2]:]
+        med = min(np.median(zone), hilim)
+        d[zonlim[0]:zonlim[1], zonlim[2]:][np.where(zone > hilim)] = med
+        #d[:280, 2004:2006][np.where(d[:280, 2004:2006] > hilim)] = med
+        d[:280, 2004:2011][np.where(d[:280, 2004:2011] > hilim)] = med
         d[np.where(d < lowcut)] = lowcut
-        return d
 
     def midprepare(self, bdf_pth, newname, rot=True):
         """Make a MIDAS procedures for preparing image.
