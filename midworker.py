@@ -231,8 +231,8 @@ class Preparer:
         self.journal_dct = {}
         self.obs_dct = {}
         self.sep, self.postfix, self.ext = '_', '.', 'fits'
-        self.key_dct = {"bias": 'b', "thar": 't', "flatfield": 'f', "ll": 'f',
-                        "sky": 's'}
+        self.key_dct = {"bias": 'b', "thar": 't', "flatfield": 'f', "ff": 'f',
+                        "ll": 'f', "sky": 's'}
         #self.imgcut_dct = {2052: (4, 1992, 4, 2039), # NES 2052x2052 chip
         self.imgcut_dct = {2052: (3, 2048, 4, 2039), # NES 2052x2052 chip
         # Resulting shape after cut for NES images with cuts (4, 1992, 4, 2039)
