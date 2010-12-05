@@ -353,7 +353,7 @@ class MidWorker:
                 os.remove(bnam+'.'+self.ext)
 
 
-class Preparer:
+class Preparer(MidWorker):
     """Class for image processing with MIDAS, against MIDAS sripting language =)
     We use MIDAS routines through pyMidas, but replace it with numpy and pyfits,
     if it is possible.
@@ -405,6 +405,7 @@ class Preparer:
         (434, 433), (435, 433), (185, 185, 184), (184, 185), (1903, 1903, 1902),
         (1902, 1903), (1229, 1229, 1228), (1228, 1229), (47, 47, 48), (48, 47)]
         self.rowdoc = lambda d, xs: sum([d[:, 2052-r-60] for r in xs]) / len(xs)
+        self.mw = MidWorker(usedisp=usedisp, verbose=verbose)
 
     def prepare(self, files, logonly=False, crop=True, rot=True, badrow=False,
                 substbias=False, cleanhead=True, filmove=True):
@@ -453,7 +454,7 @@ class Preparer:
             self.savefits(curfts, newname)
             if filmove:
                 shutil.move(file_pth, self.dest_dir)
-            self.midprepare("l"+num+".bdf", newname, rot=self.rot)
+            MidWorker.savebdf(self.mw, newname, "l"+num+"d.bdf")
             if self.verbose:
                 print pyfits.info(newname)
 
@@ -525,24 +526,6 @@ class Preparer:
         #d[:280, 2004:2006][np.where(d[:280, 2004:2006] > hilim)] = med
         d[:280, 2004:2011][np.where(d[:280, 2004:2011] > hilim)] = med
         d[np.where(d < lowcut)] = lowcut
-
-    def midprepare(self, bdf_pth, newname, rot=True):
-        """Make a MIDAS procedures for preparing image.
-        Creating Midas image file (bdf), rotate image, write descriptors,
-        load it on display.
-        @param rot: rotate bdf image using rotate/clock Midas routine
-        """
-        midas.indiskFits(newname, bdf_pth)
-        # TODO Maybe it is better to use numpy for rotate/flip?
-        if rot:
-            midas.rotateCloc(bdf_pth, "tmp", "1")
-            shutil.move('tmp.bdf', bdf_pth)
-        # TODO midas.flipImag?
-        midas.writeDesc(bdf_pth, 'start/d/1/2 1.,1.')
-        midas.writeDesc(bdf_pth, 'step/d/1/2 1.,1.')
-        #midas.do('@@ badrow ' + bdf_pth)
-        if self.usedisp:
-            midas.do('@@ lo_ima ' + bdf_pth)
 
     def modkey(self, val, keymode=False):
         """Modify input value, depending on keymode.
