@@ -249,7 +249,7 @@ class MidWorker:
         """Save a MIDAS bdf image, using existing FITS file
         Also write descriptors, load it on display
         """
-        midas.indiskFits(newname, bdf_pth)
+        midas.indiskFits(name, bdf_pth)
         if wridesc:
             midas.writeDesc(bdf_pth, 'start/d/1/2 1.,1.')
             midas.writeDesc(bdf_pth, 'step/d/1/2 1.,1.')
