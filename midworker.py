@@ -275,12 +275,12 @@ class Preparer:
         self.crop = crop
         self.rot = rot
         self.badrow = badrow
-        if files and not os.path.isdir(self.dest_dir):
+        if files and filmove and not os.path.isdir(self.dest_dir):
             os.mkdir(self.dest_dir)
         for (file_pth, num, date, fflag, keymode) in sorted(files):
             if self.verbose:
                 print pyfits.info(file_pth)
-            print "Open file", file_pth
+                print "Open file", file_pth
             curfts = pyfits.open(file_pth) #mode="update"
             head = curfts[0].header
             flag = self.keyset(head.get('object'))
@@ -294,7 +294,7 @@ class Preparer:
                 continue
             if cleanhead:
                 # Clean header - delete empty strings:
-                del head['']
+                del curfts[0].header['']
                 #head.add_blank(after='SHSTAT')
             # Write header to FITS object (not to disk!)
             curfts[0].header = head
