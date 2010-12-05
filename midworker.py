@@ -253,8 +253,8 @@ class Preparer:
         (1902, 1903), (1229, 1229, 1228), (1228, 1229), (47, 47, 48), (48, 47)]
         self.rowdoc = lambda d, xs: sum([d[:, 2052-r-60] for r in xs]) / len(xs)
 
-    def prepare(self, files, logonly=False, crop=True, rot=True,
-                badrow=False, cleanhead=True, filmove=True):
+    def prepare(self, files, logonly=False, crop=True, rot=True, badrow=False,
+                substbias=False, cleanhead=True, filmove=True):
         """Method for packet preparing and/or logging of raw images,
         mostly taken on spectrographs of 6-meter telescope.
         @param files: list of raw image parameters with its paths
@@ -267,6 +267,11 @@ class Preparer:
         @param filmove: move or not source files (raw images) to
                 self.arch_dir, after they are have been processed
         """
+        if substbias and type(substbias) is str:
+            self.bias = pyfits.getdata(substbias)
+            self.substbias = True
+        else:
+            self.substbias = False
         self.crop = crop
         self.rot = rot
         self.badrow = badrow
@@ -297,24 +302,24 @@ class Preparer:
                                           str(date[2]).zfill(2)))
             newname = os.path.join(self.dest_dir, "".join((date, self.sep,
                         num, flag, self.postfix, self.ext)))
-            self.processdata(curfts, newname)
+            self.processdata(curfts)
+            self.savefits(curfts, newname)
             if filmove:
                 shutil.move(file_pth, self.dest_dir)
             self.midprepare("l"+num+".bdf", newname, rot=self.rot)
             if self.verbose:
                 print pyfits.info(newname)
 
-    def processdata(self, curfts, newname):
-        """Process image data: crop, rotate, save."""
+    def processdata(self, curfts, hilim=600):
+        """Process image data: substract bias, crop, rotate, mask bad rows"""
         data = curfts[0].data
         dshape = data.shape
+        if self.substbias:
+            data -= self.bias
         if self.badrow:
-            self.nesbadrow(data)
-        if self.crop:
-            if dshape[0] in self.imgcut_dct:
-                x1, x2, y1, y2 = self.imgcut_dct[dshape[0]]
-            else:
-                x1, x2, y1, y2 = 0, dshape[0], 0, dshape[1]
+            self.nesbadrow(data, hilim=hilim)
+        if self.crop and dshape[0] in self.imgcut_dct:
+            x1, x2, y1, y2 = self.imgcut_dct[dshape[0]]
             #midas.extractImag({name} = {namef}[@{x1},@{y1}:@{x2},@{y2}])
             data = data[y1:y2, x1:x2]
         if self.rot and dshape[0] >= 2052:
@@ -325,6 +330,9 @@ class Preparer:
         # Write result
         curfts[0].data = data
         curfts[0].scale('float32', 'old') # int16
+
+    def savefits(self, curfts, newname):
+        """Save current fits"""
         if os.path.isfile(newname):
             bcknam = newname.replace("."+self.ext, "-backup."+self.ext)
             shutil.move(newname, bcknam)
