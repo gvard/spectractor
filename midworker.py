@@ -555,8 +555,9 @@ class Preparer:
 class MidWorker:
     """Class with simple wrappers for some ESO MIDAS routines
     """
-    def __init__(self, verbose=False):
+    def __init__(self, usedisp=False, verbose=False):
         self.verbose = bool(verbose)
+        self.usedisp = usedisp
         self.ext = 'bdf'
 
     def plot(self, bnam, plt="row", cut=2010, over=False):
@@ -605,12 +606,14 @@ class MidWorker:
         param cosm: frame containing mask for the giving image
         """
         #if specname.endswith(".bdf"):
-        i, j = self.loima(specname)
         resnam = specname.split(".")[0]+"f"
         params = ",".join(map(str, (0, 2, 8, ns, 2)))
+        if self.usedisp:
+            i, j = self.loima(specname)
         midas.filterCosm(specname, resnam, params, cosm)
-        scale = ",".join((str(i), str(j), 'max'))
-        midas.loadImag(cosm, "scale="+scale, "cuts=0,1")
+        if self.usedisp:
+            scale = ",".join((str(i), str(j), 'max'))
+            midas.loadImag(cosm, "scale="+scale, "cuts=0,1")
 
     def cycle(self, beg, end, plt, fcat=False, pfix=""):
         k = True
@@ -648,7 +651,7 @@ class MidWorker:
         midas.setGrap("color=1")
         if midlo:
             midas.do("@@ lo_ima " + resnam)
-        else:
+        elif self.usedisp:
             self.loima(resnam)
 
     def crebias(self, beg, end, resnam='bias', icat=False, plt="row", med=35):
@@ -685,6 +688,7 @@ class MidWorker:
                 nameo = bnam + pfix
                 midas.computeImag(nameo, "=", bnam, "-", biasname)
                 midas.statistImag(nameo)
-                self.loima(nameo)
+                if self.usedisp:
+                    self.loima(nameo)
                 midas.copyDd(bnam, "*,3", nameo)
                 os.remove(bnam+'.'+self.ext)
