@@ -597,6 +597,17 @@ class MidWorker:
         midas.writeKeyw("log/i/4/1", "0")
         return i, j
 
+    def savebdf(self, name, bdf_pth, wridesc=True):
+        """Save a MIDAS bdf image, using existing FITS file
+        Also write descriptors, load it on display
+        """
+        midas.indiskFits(newname, bdf_pth)
+        if wridesc:
+            midas.writeDesc(bdf_pth, 'start/d/1/2 1.,1.')
+            midas.writeDesc(bdf_pth, 'step/d/1/2 1.,1.')
+        if self.usedisp:
+            self.loima(bdf_pth)
+
     def filtcosm(self, specname, ns=2, cosm="cosm"):
         """Wrapper for filter/cosm Midas routine, which removes cosmic
         ray events from CCD image and replace them by a local median value.
