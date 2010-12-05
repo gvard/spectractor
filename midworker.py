@@ -282,14 +282,8 @@ class Preparer:
                 print pyfits.info(file_pth)
                 print "Open file", file_pth
             curfts = pyfits.open(file_pth) #mode="update"
-            head = curfts[0].header
-            flag = self.keyset(head.get('object'))
-            try:
-                self.logger(head, int(num), date, flag, keymode)
-            except (ValueError, TypeError, AttributeError):
-                print "Trying to fix", file_pth, "FITS header."
-                curfts.verify(self.fixfitslog)
-                self.logger(head, int(num), date, flag, "str")
+            #head = curfts[0].header
+            self.logger(curfts, int(num), date, keymode)
             if logonly:
                 continue
             if cleanhead:
@@ -297,11 +291,11 @@ class Preparer:
                 del curfts[0].header['']
                 #head.add_blank(after='SHSTAT')
             # Write header to FITS object (not to disk!)
-            curfts[0].header = head
+            #curfts[0].header = head
             date = "".join((str(date[0]), str(date[1]).zfill(2),
                                           str(date[2]).zfill(2)))
             newname = os.path.join(self.dest_dir, "".join((date, self.sep,
-                        num, flag, self.postfix, self.ext)))
+                        num, self.flag, self.postfix, self.ext)))
             self.processdata(curfts)
             self.savefits(curfts, newname)
             if filmove:
@@ -434,26 +428,36 @@ class Preparer:
         else:
             return self.modkey(val, keymode=keymode)
 
-    def logger(self, head, num, date, flag, keymode=False):
+    def getcoords(self, head, keymode=False):
+        ra = self.pickhead(head, keymode, 'RA')
+        if not keymode:
+            ra = ra / 15.
+        dec = self.pickhead(head, keymode, 'DEC')
+        az  = self.pickhead(head, keymode, 'A_PNT', 'AZIMUTH')
+        zen = self.pickhead(head, keymode, 'Z_PNT', 'ZDIST', 'ZENDIST')
+        if type(az) in (int, float) and az < 0:
+            az += 360
+        #sidertime_start = self.pickhead(head, keymode, 'ST')
+        ra, dec = clocker(ra), clocker(dec)
+        az, zen = clocker(az), clocker(zen)
+        return ra, dec, az, zen
+
+    def logger(self, curfts, num, date, keymode=False):
         """Create an observation log for input images.
         Search for some specific keys in given fits header and write it
         to 'journal': journal_dct and obs_dct dictionaries.
         """
         # Read coords
         try:
-            ra = self.pickhead(head, keymode, 'RA')
-            if not keymode:
-                ra = ra / 15.
-            dec = self.pickhead(head, keymode, 'DEC')
-            az  = self.pickhead(head, keymode, 'A_PNT', 'AZIMUTH')
-            zen = self.pickhead(head, keymode, 'Z_PNT', 'ZDIST', 'ZENDIST')
-            if type(az) in (int, float) and az < 0:
-                az += 360
-            sidertime_start = self.pickhead(head, keymode, 'ST')
-            ra, dec = clocker(ra), clocker(dec)
-            az, zen = clocker(az), clocker(zen)
-        except (TypeError, AttributeError):
-            ra, dec, az, zen = (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)
+            ra, dec, az, zen = self.getcoords(curfts[0].header, keymode=keymode)
+        except (ValueError, TypeError, AttributeError):
+            print "Trying to fix", file_pth, "FITS header."
+            curfts.verify(self.fixfitslog)
+            keymode = "str"
+            ra, dec, az, zen = self.getcoords(curfts[0].header, keymode=keymode)
+        head = curfts[0].header
+        #except (TypeError, AttributeError):
+            #ra, dec, az, zen = (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)
         # 199xxxxx(DVD01) 20030810(DVD07)--20080331(DVD31), since 20081103_002
         wind = self.pickhead(head, 'raw', 'WIND')
         # This block in 20030810(DVD07)--20080331(DVD31), since 20081103_002
@@ -484,14 +488,15 @@ class Preparer:
             time = clocker(time_start)
         except TypeError:
             time = self.pickhead(head, 'raw', 'TM-START', 'TM_START')
-        exp = int(self.pickhead(head, 'raw', 'EXPTIME'))
-        if flag == "b" and exp != 0:
-            flag = "o"
+        self.exp = int(self.pickhead(head, 'raw', 'EXPTIME'))
+        self.obj = self.pickhead(head, 'raw', 'OBJECT')
+        self.flag = self.keyset(self.obj)
+        if self.flag == "b" and self.exp != 0:
+            self.flag = "o"
         dateobs = head.get('DATE-OBS')
-        obj = self.pickhead(head, 'raw', 'OBJECT')
         if self.verbose:
-            self.warner(exp, obj, num)
-        self.obs_dct[num] = [date, flag, obj, time, exp, ra, dec,
+            self.warner(self.exp, self.obj, num)
+        self.obs_dct[num] = [date, self.flag, self.obj, time, self.exp, ra, dec,
                 az, zen, dateobs]
 
     def warner(self, exp, obj, num):
