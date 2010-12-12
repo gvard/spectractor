@@ -729,7 +729,7 @@ class Spectractor(Spliner):
         lams = lams[beg:end]
         return lams, beg, end
 
-    def runner(self, lam=None, ish=None):
+    def runner(self, lam=None, divs=None, ish=None):
         """Iterate over the spectra."""
         for spec in sorted(self.spectra):
             data, fds, polys = self.get_raw(spec.pth, spec.fdpth, spec.plpth)
@@ -737,6 +737,9 @@ class Spectractor(Spliner):
                 cuts = self.cuts_dct[spec.id]
             else:
                 cuts = None
+            if divs and spec.id in divs:
+                for ordr in divs[spec.id]:
+                    data[ordr] = data[ordr] / divs[spec.id][ordr]
             self.take_orders(data, fds, polys, spec, lam, cuts=cuts, ish=ish)
 
     def get_lims(self, lam=None):
@@ -772,7 +775,7 @@ class Spectractor(Spliner):
         self.runner(lam=lam, ish=ish)
         return self.fdata
 
-    def get_chains(self, lam, llim=None, hlim=None, ish=0, wcut=None):
+    def get_chains(self, lam, llim=None, hlim=None, divs=None, ish=0, wcut=None):
         """Collect spectra chains containing given wavelength in a given
         velocity range. At least one of the limits in velocity scale must be set
         @param lam: wavelength of interest
@@ -796,10 +799,10 @@ class Spectractor(Spliner):
             self.hlam = (hlim * lam)/_C + lam
         else:
             return
-        self.runner(lam, ish=ish)
+        self.runner(lam, divs=divs, ish=ish)
         return self.fdata
 
-    def get_atlas(self, llam=None, hlam=None, ish=0):
+    def get_atlas(self, llam=None, hlam=None, divs=None, ish=0):
         """Collect spectra chains in a given wavelength range.
         If limit is not set, get all orders in this direction.
         @param ish: relative intensity shift for flatted order
@@ -808,5 +811,5 @@ class Spectractor(Spliner):
         """
         self.llam = llam
         self.hlam = hlam
-        self.runner(ish=ish)
+        self.runner(divs=divs, ish=ish)
         return self.fdata
