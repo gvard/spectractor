@@ -436,9 +436,10 @@ class Preparer(MidWorker):
         (1902, 1903), (1229, 1229, 1228), (1228, 1229), (47, 47, 48), (48, 47)]
         self.rowdoc = lambda d, xs: sum([d[:, 2052-r-60] for r in xs]) / len(xs)
         self.mw = MidWorker(usedisp=usedisp, verbose=verbose)
+        self.biases, self.flats = {}, {}, {}
 
     def prepare(self, files, logonly=False, crop=True, rot=True, badrow=False,
-                substbias=False, cleanhead=True, filmove=True):
+            substbias=False, cleanhead=True, filmove=True, process=True):
         """Method for packet preparing and/or logging of raw images,
         mostly taken on spectrographs of 6-meter telescope.
         @param files: list of raw image parameters with its paths
@@ -467,7 +468,7 @@ class Preparer(MidWorker):
                 print "Open file", file_pth
             curfts = pyfits.open(file_pth) #mode="update"
             #head = curfts[0].header
-            self.logger(curfts, int(num), date, keymode)
+            self.logger(curfts, num, date, file_pth, keymode=keymode)
             if logonly:
                 continue
             if cleanhead:
@@ -476,15 +477,27 @@ class Preparer(MidWorker):
                 #head.add_blank(after='SHSTAT')
             # Write header to FITS object (not to disk!)
             #curfts[0].header = head
-            date = "".join((str(date[0]), str(date[1]).zfill(2),
-                                          str(date[2]).zfill(2)))
-            newname = os.path.join(self.dest_dir, "".join((date, self.sep,
-                        num, self.flag, self.postfix, self.ext)))
-            self.processdata(curfts)
+            if file_pth in self.biases:
+                if filmove:
+                    shutil.move(file_pth, self.dest_dir)
+                continue
+            elif file_pth in self.flats:
+                newname = self.flats[file_pth]
+                hilim = 9000
+            else:
+                date = "".join((str(date[0]), str(date[1]).zfill(2),
+                                              str(date[2]).zfill(2)))
+                newname = os.path.join(self.dest_dir, "".join((date, self.sep,
+                            num, self.flag, self.postfix, self.ext)))
+                hilim = 2600
+            if process:
+                self.processdata(curfts, hilim=hilim)
             self.savefits(curfts, newname)
             if filmove:
                 shutil.move(file_pth, self.dest_dir)
-            MidWorker.savebdf(self.mw, newname, "l"+num+"d.bdf")
+            if file_pth in self.flats:
+                continue
+            self.mw.savebdf(newname, "l"+num+"d.bdf")
             if self.verbose:
                 print pyfits.info(newname)
 
@@ -608,7 +621,7 @@ class Preparer(MidWorker):
         az, zen = clocker(az), clocker(zen)
         return ra, dec, az, zen
 
-    def logger(self, curfts, num, date, keymode=False):
+    def logger(self, curfts, num, date, file_pth, keymode=False):
         """Create an observation log for input images.
         Search for some specific keys in given fits header and write it
         to 'journal': journal_dct and obs_dct dictionaries.
@@ -659,10 +672,20 @@ class Preparer(MidWorker):
         self.flag = self.keyset(self.obj)
         if self.flag == "b" and self.exp != 0:
             self.flag = "o"
+        elif self.exp == 0 and self.flag != "b":
+            self.flag = "b"
+
+        if self.flag == "b":
+            newname = "".join(('b', num, self.postfix, self.ext))
+            self.biases[file_pth] = newname
+        elif self.flag == "f":
+            newname = "".join(('f', num, self.postfix, self.ext))
+            self.flats[file_pth] = newname
+
         dateobs = head.get('DATE-OBS')
         if self.verbose:
             self.warner(self.exp, self.obj, num)
-        self.obs_dct[num] = [date, self.flag, self.obj, time, self.exp, ra, dec,
+        self.obs_dct[int(num)] = [date, self.flag, self.obj, time, self.exp, ra, dec,
                 az, zen, dateobs]
 
     def warner(self, exp, obj, num):
@@ -714,5 +737,5 @@ class Preparer(MidWorker):
         dec = self.seper("%04.1f", *dec)
         az = self.seper("%04.1f", *az)
         zen = self.seper("%04.1f", *zen)
-        return "%3d %13s %15s %8s %4d %11s %11s %11s %10s %s" % (num,
+        return "%3d %13s %15s %8s %4d %11s %11s %11s %10s %s" % (int(num),
                 date, obj, time, exp, ra, dec, az, zen, dateobs)
