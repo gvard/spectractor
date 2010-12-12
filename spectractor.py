@@ -313,34 +313,6 @@ def write_ccmtxt(ccm_dct, ccm_pth):
     ccm.close()
 
 
-def take_orders(data, fds, lam, polypt, edglim=5, ish=0, wcut=.5, olim=2):
-    """Take orders from data which contains given wavelength.
-    Here we assume that orders are sorted by wavelength.
-    @param data: data as 2D array
-    @param fds: dispersion curve as 2D array of wavelengths
-    @param lam: wavelength, probably containing in fds' wavelength range
-    @param polypt: dictionary with points for flatten polynome plotting
-    @param edglim: index for breaking points at the edges
-    @param ish: intensity shift for flatted order
-    @param wcut: wavelength shift in angstroms: break order with
-        'incomplete' line with wcut<0 or take it otherwise)
-    @param olim: limit for number of extracted orders
-    @return: dictionary with tuples of fds[i], data[i] as values
-        and order numbers as keys
-    """
-    ords_dct = {}
-    for i in xrange(len(data)):
-        if fds[i][edglim]-wcut < lam < fds[i][-edglim]+wcut:
-            if i+1 in polypt:
-                ords_dct[i] = (flat_order(data[i], polypt[i+1],
-                                          intlev=ish), fds[i])
-            else:
-                print "polynome points dict has no", i+1, "order, pass"
-        if len(ords_dct) == olim:
-            break
-    return ords_dct
-
-
 def interp_chain(lams, dats, mf=5, k=1):
     """Interpolate chain with multiply factor mf.
     @param mf: Multiply factor: length of output arrays is calculated as
