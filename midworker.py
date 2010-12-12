@@ -207,6 +207,8 @@ class MidWorker:
         self.verbose = bool(verbose)
         self.usedisp = usedisp
         self.ext = 'bdf'
+        self.med = 35
+        self.avermed = lambda m: ",".join(('median', str(m), str(m), 'data'))
 
     def plot(self, bnam, plt="row", cut=2010, over=False):
         """Wrapper for Midas functions plot/row, plot/colu"""
@@ -255,6 +257,32 @@ class MidWorker:
             midas.writeDesc(bdf_pth, 'step/d/1/2 1.,1.')
         if self.usedisp:
             self.loima(bdf_pth)
+
+    def crebias(self, files, biasname="bias", med=None, delfits=False):
+        if not med:
+            med = self.med
+        catname = biasname+".cat"
+        midas.createIcat(catname, "NULL")
+        for file_pth in files:
+            midas.addIcat(catname, file_pth)
+        midas.averageImag(biasname, "=", catname, "? +", self.avermed(med))
+        if self.usedisp:
+            self.loima(biasname)
+        midas.outdiskFits(biasname, os.path.join('bias.fits'))
+
+    def creflat(self, files, flatname="flat", delcat=False, averopt=""):
+        """Create flat field average image
+        @param delcat: delete created cat, if icat is present
+        @param pfix: postfix of image filename, the "d" value means
+                dark substracted
+        """
+        catname = flatname+".cat"
+        midas.createIcat(catname, "NULL")
+        for file_pth in files:
+            midas.addIcat(catname, file_pth)
+        midas.averageImag(flatname, "=", catname, "?", averopt)
+        if self.usedisp:
+            self.loima(flatname)
 
     def filtcosm(self, specname, ns=2, cosm="cosm"):
         """Wrapper for filter/cosm Midas routine, which removes cosmic
@@ -313,18 +341,20 @@ class MidWorker:
         elif self.usedisp:
             self.loima(resnam)
 
-    def crebias(self, beg, end, resnam='bias', icat=False, plt="row", med=35):
+    def crebiasref(self, beg, end, resnam='bias', icat=False, plt="row",
+                med=None):
         """Create bias frame from set of biases.
         @param resnam: resulting frame name
         @param med: value of low and high interval in median averaging
         @param plt: plotting mode, could be row or col.
         """
         firstnam, namlst, cut = self.cycle(beg, end, plt, fcat=icat)
-        averopt = '+ ' + ','.join(('median', str(med), str(med), 'data'))
-        midas.averageImag(resnam, "=", namlst, "?",  averopt)
+        if not med:
+            med = self.med
+        midas.averageImag(resnam, "=", namlst, "? +",  self.avermed(med))
         self.pltgra(resnam, plt, cut)
 
-    def creflat(self, beg, end, resnam=None, icat='flat.cat', plt="col",
+    def creflatref(self, beg, end, resnam=None, icat='flat.cat', plt="col",
                 pfix="d", averopt="", delcat=False):
         """Create flat field average image
         @param delcat: delete created cat, if icat is present
