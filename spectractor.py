@@ -20,8 +20,7 @@ except ImportError, err:
 try:
     from scipy.interpolate import splrep, splev, InterpolatedUnivariateSpline
 except ImportError, err:
-    print >> sys.stderr, str(err), "SciPy is required for spline fitting only",
-    print >> sys.stderr, "in two functions: flat_order and interp_chain."
+    print >> sys.stderr, str(err), "SciPy is required for spline fitting"
 
 _C = 299792.458
 
@@ -342,36 +341,6 @@ def take_orders(data, fds, lam, polypt, edglim=5, ish=0, wcut=.5, olim=2):
     return ords_dct
 
 
-def flat_order(order, flatdots, s=None, k=3, intlev=0):
-    """Make interpolation of given order by spline based on given points.
-    This is wrapper function for SciPy spline interpolation. Description
-    of s and k parameters are from docstrings of scipy.interpolate.splrep.
-    @param order: 1D array of int data
-    @param flatdots: points for plot flat spline
-    @type flatdots: tuple or list of [dotsx], [dotsy]
-    @param k: The order of the spline fit. It is recommended to use cubic
-        splines; 1 <= k <= 5
-    @param s: A smoothing condition. The amount of smoothness is determined by
-        satisfying the conditions: sum((w * (y - g))**2,axis=0) <= s where g(x)
-        is the smoothed interpolation of (x, y). Larger s means more smoothing
-        while smaller values of s indicate less smoothing. Recommended values
-        of s depend on the weights, w. default: s=m-sqrt(2*m) if weights are
-        supplied
-    @param intlev: Intensity shift for flatted order. By default
-        0 <= output_data <= 1
-    @return: normalized order
-    """
-    pixnums = np.arange(1, len(order)+1, 1)
-    xflat, yflat = zip(*flatdots)
-    try:
-        tckp = splrep(xflat, yflat, s=s, k=k)
-    except ValueError, err:
-        print >> sys.stderr, "ValueError in flat_order:", err,
-        print >> sys.stderr, "Maybe you should sort input arrays."
-        raise SystemExit
-    return order / splev(pixnums, tckp) + intlev
-
-
 def interp_chain(lams, dats, mf=5, k=1):
     """Interpolate chain with multiply factor mf.
     @param mf: Multiply factor: length of output arrays is calculated as
@@ -564,7 +533,7 @@ class Spliner:
     """Plot polynome using a set of reference points in a given range
     @param spk: degree of spline
     """
-    def __init__(self, beg, end, smooth=None, spk=3):
+    def __init__(self, beg=None, end=None, smooth=None, spk=3):
         self.smooth = smooth
         self.spk = spk
         self.beg, self.end = beg, end
@@ -576,8 +545,33 @@ class Spliner:
     def mk_spline(self):
         return splev(np.arange(self.beg, self.end), self.tckp)
 
+    def flat_order(self, order, flatdots, beg=0, end=None, intlev=0):
+        """Make interpolation of given order by spline based on given points.
+        This is wrapper function for SciPy spline interpolation.
+        See help of splrep and splev functions from scipy.interpolate.
+        Spline parameters are set to default (cubic spline). If you want
+        to change them, use class variables self.spk and self.sps.
+        beg and end indices are used for slicing (cutting) data.
+        @param order: 1D array of data
+        @param flatdots: points for plotting flat spline. Must be sorted!
+        @type flatdots: tuple or list of X and Y array: ([dotsx], [dotsy])
+        @param intlev: intensity shift for flatten order
+        @return: normalized (flatten) order, shifted on intlev
+        """
+        xflat, yflat = zip(*flatdots)
+        if end is None:
+            end = len(order)
+        self.beg, self.end = beg + 1, end + 1
+        try:
+            splfit = self.splpl(xflat, yflat)
+        except ValueError, err:
+            print >> sys.stderr, "ValueError in flat_order:", err,
+            print >> sys.stderr, "Maybe you should sort input arrays."
+            raise SystemExit
+        return order / splfit + intlev
 
-class Spectractor:
+
+class Spectractor(Spliner):
     """Class for manipulating set of 1D spectra: collect and unify data.
     First we read raw data and fds. Than select spectral orders, shift, cut
     and flat each of them, finally, write to resulting array.
@@ -608,9 +602,7 @@ class Spectractor:
         self.vshift = True
         self.wcut = 1
         self.mkey = lambda sp, x: ((sp.id, sp.flag, sp.pth, sp.Vr, sp.jd, x))
-        # Spline parameters for flat_order
-        self.sps = None
-        self.spk = 3
+        self.Spl = Spliner()
 
     def get_raw(self, data_pth, fds_pth, pp_pth):
         """Read binary files containing data, wavelength scale (fds) and ccm
@@ -642,28 +634,6 @@ class Spectractor:
             self.fdata[key] = (lams, dats)
         elif self.dtype is list:
             self.fdata.append((key, lams, dats))
-
-    def flat_order(self, order, flatdots, beg, end, intlev=0):
-        """Make interpolation of given order by spline based on given points.
-        This is wrapper function for SciPy spline interpolation.
-        See help of splrep and splev functions from scipy.interpolate.
-        Spline parameters are set to default (cubic spline). If you want
-        to change them, use class variables self.spk and self.sps.
-        beg and end indices are used for slicing (cutting) data.
-        @param order: 1D array of data
-        @param flatdots: points for plotting flat spline. Must be sorted!
-        @type flatdots: tuple or list of X and Y array: ([dotsx], [dotsy])
-        @param intlev: intensity shift for flatten order
-        @return: normalized (flatten) order, shifted on intlev
-        """
-        xflat, yflat = zip(*flatdots)
-        try:
-            tckp = splrep(xflat, yflat, s=self.sps, k=self.spk)
-        except ValueError, err:
-            print >> sys.stderr, "ValueError in flat_order:", err,
-            print >> sys.stderr, "Maybe you should sort input arrays."
-            raise SystemExit
-        return order / splev(np.arange(beg+1, end+1, 1), tckp) + intlev
 
     def take_orders(self, data, fds, polypt, opts, lam=None, ish=0, cuts=None):
         """Take some orders from given spectrum depending of some conditions.
@@ -708,9 +678,10 @@ class Spectractor:
                 print "Get", opts.id, opts.flag, "order", str(i+1), "pix num",
                 print beg, end, "its wavelengths", round(lams[0], 2),
                 print round(lams[-1], 2), "chain length:", end - beg
-            dats = self.flat_order(data[i][beg:end], pols, beg, end, intlev=ish)
+            dats = self.Spl.flat_order(data[i][beg:end], pols, beg, end,
+                        intlev=ish)
             # The same:
-            #dats = flat_order(data[i], pols, intlev=ish)[beg:end]
+            #dats = self.Spl.flat_order(data[i], pols, intlev=ish)[beg:end]
             if lam and self.vscl:
                 # Convert to radial velocity scale: v = C * deltalam / lam
                 lams = (lams - lam) * _C / lam
