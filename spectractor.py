@@ -560,6 +560,23 @@ def gen_split_array(ordlen=4000, ovr=100, beg=4000, end=6800, step=.05):
     return split_array(np.arange(beg, end, step), ordlen, ovr)
 
 
+class Spliner:
+    """Plot polynome using a set of reference points in a given range
+    @param spk: degree of spline
+    """
+    def __init__(self, beg, end, smooth=None, spk=3):
+        self.smooth = smooth
+        self.spk = spk
+        self.beg, self.end = beg, end
+
+    def splpl(self, xflat, yflat):
+        self.tckp = splrep(xflat, yflat, s=self.smooth, k=self.spk)
+        return self.mk_spline()
+
+    def mk_spline(self):
+        return splev(np.arange(self.beg, self.end), self.tckp)
+
+
 class Spectractor:
     """Class for manipulating set of 1D spectra: collect and unify data.
     First we read raw data and fds. Than select spectral orders, shift, cut
