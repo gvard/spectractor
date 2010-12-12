@@ -208,7 +208,7 @@ def read_dis(dis_pth, ord_num, maxpnt=30):
         #number of points in current curve
         curlen = int(unpack('f', dis.read(fsz))[0])
         data.append([])
-        for i in xrange(curlen):
+        for _ in xrange(curlen):
             xlm = unpack('ff', dis.read(fsz*2))
             data[j].append(xlm)
         shift = (maxpnt - curlen) * fsz * 2

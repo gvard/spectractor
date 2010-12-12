@@ -208,13 +208,13 @@ class Walker:
                 continue
             if night not in self.journal:
                 continue
-            jy, mjd, spc, lwv, hwv, Vr, sn, fdsnam = self.journal[night]
+            jy, mjd, spc, lwv, hwv, Vr, sn, fdsnam = self.journal[night][:8]
             #jy, mjd, spc, lwv, hwv, Vr, sn, fdsnum = self.journal[night]
             pls_pth = os.path.splitext(path)[0]+'.ccm.txt'
             if not os.path.isfile(pls_pth):
                 print >> sys.stderr, "Exclude", path+": no ccm.txt file"
                 continue
-            fds_pth = os.path.join(os.path.dirname(path), str(fdsnam))
+            fds_pth = os.path.join(os.path.dirname(path), str(fdsnam)+'.fds')
             if not os.path.isfile(fds_pth):
                 fds_pth = self.find_fds(path, str(night).zfill(6))
                 if not fds_pth:
@@ -235,7 +235,7 @@ class Walker:
             if night not in journal:
                 fds_pth = self.find_fds(path, str(night).zfill(6))
                 if not fds_pth:
-                    print "Exclude", path
+                    print "Exclude", path, "no fds"
                     continue
                 lwv, hwv = get_wv_range(fds_pth)
                 fds_pth = os.path.basename(fds_pth)
@@ -250,7 +250,9 @@ class Walker:
         """
         fdses = {}
         nig, num = night[:3], int(night[3:])
-        rxp = os.path.dirname(path)+os.sep+'*'+nig+'*'+'.fds'
+        rxp = '*'+nig+'*'+'.fds'
+        if os.path.dirname(path):
+            rxp = os.path.dirname(path) + os.sep + rxp
         fds_pths = glob.glob(rxp)
         if not fds_pths:
             return
@@ -291,7 +293,7 @@ class Walker:
         return self.path_set
 
 
-def read_journal(j_pth): return cPickle.load(open(j_pth))
+def read_journal(j_pth): return cPickle.load(open(j_pth, 'rb'))
 
 
 def mod_journal(journal, sn=10, rvc=True, rvcorr_dct=None, instr=None,
