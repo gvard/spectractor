@@ -10,6 +10,69 @@ import numpy as np
 from spectractor import Spliner
 
 
+class Clicker:
+    """Class for interactive manipulations with given subplot.
+    Coordinates of the cursor appends to list after click, plot updates with
+    cross and label.
+    @param splt: matplotlib subplot object
+    """
+    def __init__(self, splt, xlims=None, clr='r', crdlim=30):
+        self.splt = splt
+        # Plot params
+        self.clr = clr
+        if xlims:
+            self.zw = abs(xlims[0]-xlims[1]) / 10.
+        else:
+            self.zw = None
+        self.zoomed = False
+        self.xlims = xlims
+        self.kpe, self.bpe = "key_press_event", "button_press_event"
+        self.tb = plt.get_current_fig_manager().toolbar
+        self.crdlim = crdlim
+        self.coords, self.plcm = [], []
+
+    def getcoords(self, event, rndl=3):
+        return round(event.xdata, rndl), round(event.ydata, rndl)
+
+    def addpnt(self, event):
+        x, y = self.getcoords(event)
+        self.coords.append((x, y))
+        if len(self.coords) > self.crdlim:
+            plt.close()
+        self.plcm.append(self.splt.plot(x, y, '+', c=self.clr, ms=10)[0])
+        plt.draw()
+
+    def delplt(self, ind):
+        self.plcm[ind].remove()
+        del self.plcm[ind]
+        del self.coords[ind]
+        plt.draw()
+
+    def zoom(self, event):
+        if not self.zoomed:
+            x, y = self.getcoords(event)
+            x0, x1 = x-self.zw, x+self.zw
+            self.zoomed = True
+        else:
+            x0, x1 = self.xlims
+            self.zoomed = False
+        self.splt.set_xlim(x0, x1)
+        plt.draw()
+
+    def __call__(self, evnt):
+        """@param evnt: event"""
+        if not self.tb.mode and evnt.inaxes and evnt.name == self.bpe \
+                and evnt.button == 1:
+            self.addpnt(evnt)
+        elif evnt.name == self.kpe and evnt.key == ' ' and evnt.inaxes \
+                and self.zw:
+            self.zoom(evnt)
+        elif evnt.name == self.kpe and evnt.key == 'd' and len(self.coords):
+            self.delplt(-1)
+        elif evnt.name == self.kpe and evnt.key == 'q':
+            plt.close()
+
+
 class Flatter(Spliner):
     """Class for interactive flatting set of 1D data.
     @param splt: matplotlib subplot object
