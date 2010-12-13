@@ -615,9 +615,14 @@ class Preparer(MidWorker, Logger):
             determine used CCD chip
         @param rot: rotate image clockwise
         @param badrow: mask bad rows on NES CCD chip
+        @param substbias: substract bias frame, if the filename
+            bias image is given
         @param cleanhead: remove empty strings in fits headers
         @param filmove: move or not source files (raw images) to
-                self.arch_dir, after they are have been processed
+            self.arch_dir, after they are have been processed
+        @param process: process images, if True. Otherwise all
+            of the processing procedures (crop, rot, badrow, substbias)
+            will be omitted
         """
         if substbias and type(substbias) is str:
             self.bias = pyfits.getdata(substbias)
@@ -664,6 +669,7 @@ class Preparer(MidWorker, Logger):
             self.mw.savebdf(newname, "l"+num+"d.bdf")
 
     def crebias(self, biasname="bias", files=None, filmove=True, log=True):
+        """Average bias frames with crebias Midworker method"""
         if files:
             self.prepare(files, process=False, cleanhead=False,
                         log=log, filmove=filmove)
@@ -676,6 +682,9 @@ class Preparer(MidWorker, Logger):
         self.mw.crebias(self.Lg.biases.values(), biasname=biasname)
 
     def creflat(self, flatname="flat"):
+        """Average flat field frames with creflat Midworker method.
+        After averaging make a filter/cosm procedure
+        """
         if self.Lg.flats:
             self.mw.creflat(self.Lg.flats.values(), flatname=flatname)
             self.mw.filtcosm(flatname)
