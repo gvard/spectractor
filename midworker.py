@@ -498,8 +498,6 @@ class Preparer(MidWorker):
             if file_pth in self.flats:
                 continue
             self.mw.savebdf(newname, "l"+num+"d.bdf")
-            if self.verbose:
-                print pyfits.info(newname)
 
     def crebias(self, biasname="bias", files=None, filmove=True, log=True):
         if files:
@@ -718,7 +716,7 @@ class Preparer(MidWorker):
             shutil.move(os.path.join(wdir, filenam + ".log"),
                         os.path.join(wdir, filenam + ".old"))
         obslog = open(os.path.join(wdir, filenam+".log"), "w")
-        for num, val in self.obs_dct.items():
+        for num, val in sorted(self.obs_dct.items()):
             obsstr = self.logstringer(num, val)
             print >> obslog, obsstr
         obslog.close()
