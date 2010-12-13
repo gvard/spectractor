@@ -266,8 +266,7 @@ class MidWorker:
         for file_pth in files:
             midas.addIcat(catname, file_pth)
         midas.averageImag(biasname, "=", catname, "? +", self.avermed(med))
-        if self.usedisp:
-            self.loima(biasname)
+        self.pltgra(biasname, "row", 1000, over=False)
         midas.outdiskFits(biasname, os.path.join('bias.fits'))
 
     def creflat(self, files, flatname="flat", delcat=False, averopt=""):
@@ -283,6 +282,7 @@ class MidWorker:
         midas.averageImag(flatname, "=", catname, "?", averopt)
         if self.usedisp:
             self.loima(flatname)
+        self.pltgra(flatname, "col", 1000, over=False)
 
     def filtcosm(self, specname, ns=2, cosm="cosm"):
         """Wrapper for filter/cosm Midas routine, which removes cosmic
