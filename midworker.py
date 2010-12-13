@@ -604,12 +604,13 @@ class Preparer(MidWorker, Logger):
         self.mw = MidWorker(usedisp=usedisp, verbose=verbose)
         self.Lg = Logger(fitsfixmode=self.fitsfixmode, verbose=verbose)
 
-    def prepare(self, files, logonly=False, crop=True, rot=True, badrow=False,
+    def prepare(self, files, log=True, crop=True, rot=True, badrow=False,
             substbias=False, cleanhead=True, filmove=True, process=True):
         """Method for packet preparing and/or logging of raw images,
         mostly taken on spectrographs of 6-meter telescope.
         @param files: list of raw image parameters with its paths
-        @param logonly: create only log, without image processing.
+        @param log: create log, if True. if "logonly", create log
+            without image processing
         @param crop: crop each image depending on its shape, which is
             determine used CCD chip
         @param rot: rotate image clockwise
@@ -633,16 +634,13 @@ class Preparer(MidWorker, Logger):
                 print pyfits.info(file_pth)
                 print "Open file", file_pth
             curfts = pyfits.open(file_pth) #mode="update"
-            #head = curfts[0].header
-            self.Lg.logger(curfts, num, date, file_pth, keymode=keymode)
-            if logonly:
-                continue
             if cleanhead:
                 # Clean header - delete empty strings:
                 del curfts[0].header['']
-                #head.add_blank(after='SHSTAT')
-            # Write header to FITS object (not to disk!)
-            #curfts[0].header = head
+            if log:
+                self.Lg.logger(curfts, num, date, file_pth, keymode=keymode)
+            if log == "logonly":
+                continue
             if file_pth in self.Lg.biases:
                 if filmove:
                     shutil.move(file_pth, self.dest_dir)
