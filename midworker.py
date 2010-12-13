@@ -501,6 +501,23 @@ class Preparer(MidWorker):
             if self.verbose:
                 print pyfits.info(newname)
 
+    def crebias(self, biasname="bias", files=None, filmove=True, log=True):
+        if files:
+            self.prepare(files, process=False, cleanhead=False,
+                        log=log, filmove=filmove)
+        elif not self.biases:
+            print "No biases, return"
+            return
+        for file_pth, newname in self.biases.items():
+            if not os.path.isfile(newname):
+                shutil.copy2(file_pth, newname)
+        self.mw.crebias(self.biases.values(), biasname=biasname)
+
+    def creflat(self, flatname="flat"):
+        if self.flats:
+            self.mw.creflat(self.flats.values(), flatname=flatname)
+            self.mw.filtcosm(flatname)
+
     def processdata(self, curfts, hilim=600):
         """Process image data: substract bias, crop, rotate, mask bad rows"""
         data = curfts[0].data
