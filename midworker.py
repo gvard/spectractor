@@ -383,207 +383,29 @@ class MidWorker:
                 os.remove(bnam+'.'+self.ext)
 
 
-class Preparer(MidWorker):
-    """Class for image processing with MIDAS, against MIDAS sripting language =)
-    We use MIDAS routines through pyMidas, but replace it with numpy and pyfits,
-    if it is possible.
-
-    This code also heavily depends of some specific characteristics of SAO RAS
-    spectral archive, mostly on spectra taken on Nesmyth Echelle Spectrograph of
-    6-meter telescope.
-    It is not pipeline package, but a set of non-interactive methods for packet
-    processing. It contains methods for averaging images, substracting bias
-    frame etc.
-    @param dest_dir: destination dir for moving processed fits files. Could be
-        omitted.
-    @param usedisp: use Midas display for loading images using Midas routines
-    """
-    def __init__(self, dest_dir="arch", usedisp=False, verbose=False):
-        self.dest_dir = dest_dir
-        self.verbose = bool(verbose)
-        self.usedisp = usedisp
-        self.fixfitslog = {True: 'fix', False: 'silentfix'}[self.verbose]
-        self.print_str = "[01;31m%s not found in header! Set it to zero.[0m"
+class Logger:
+    def __init__(self, fitsfixmode='silentfix', verbose=False):
+        self.fitsfixmode = fitsfixmode
+        self.verbose = verbose
         # Define keys, presented in FITS headers:
         self.stdkeys = ['AUTHOR', 'REFERENC', 'DATE', 'ORIGIN', 'DATE-OBS',
             'TELESCOP', 'INSTRUME', 'OBSERVER', 'OBJECT', 'EQUINOX', 'EPOCH']
         self.nonstdkeys = ['OBSERVAT', 'CHIPID', 'DETNAME', 'CCDTEMP',
                            'P_DEWAR', 'SEEING', 'PROG-ID']
-        self.otherkeys = ['WIND', 'T_OUT', 'T_IN', 'T_MIRR', 'PRES',
-                           'ST', 'MT', 'FOCUS']
+        #self.otherkeys = ['WIND', 'T_OUT', 'T_IN', 'T_MIRR', 'PRES',
+                           #'ST', 'MT', 'FOCUS']
         self.journal_dct = {}
         self.obs_dct = {}
-        self.sep, self.postfix, self.ext = '_', '.', 'fits'
         self.key_dct = {"bias": 'b', "thar": 't', "flatfield": 'f', "ff": 'f',
-                        "ll": 'f', "sky": 's'}
-        #self.imgcut_dct = {2052: (4, 1992, 4, 2039), # NES 2052x2052 chip
-        self.imgcut_dct = {2052: (3, 2048, 4, 2039), # NES 2052x2052 chip
-        # Resulting shape after cut for NES images with cuts (4, 1992, 4, 2039)
-        # will be (2035, 1988). NES with full use: (3, 2048, 0, 2046),
-        # shape will be (2045, 2046)
-        2068: (0, 2048, 2, 2048), # LPR 2068x2072 chip
-        1050: (5, 1040, 2, 1157) # PFES/Lynx 1050x1170 chip
-        }
+                        "ll": 'f', "sky": 's', "ref.ima.": 'r'}
+        self.postfix, self.ext = '.', 'fits'
+        self.print_str = "[01;31m%s not found in header! Set it to zero.[0m"
         self.keyset = lambda key: self.key_dct.get(key.lower()) \
                 if self.key_dct.get(key.lower()) else 'o'
         self.trygetkey = lambda head, *args: filter(head.has_key, args)
         self.seper = lambda fstr, h, m, s: \
                 "%s" % ":".join(["%02d" % h, "%02d" % m, fstr % s])
-        self.nesbadrows = [(338, 337, 339), (568, 567, 569),
-        (336, 336, 335), (335, 336), (1044, 1044, 1043, 1042),
-        (1043, 1044), (1042, 1044), (433, 433, 434, 435),
-        (434, 433), (435, 433), (185, 185, 184), (184, 185), (1903, 1903, 1902),
-        (1902, 1903), (1229, 1229, 1228), (1228, 1229), (47, 47, 48), (48, 47)]
-        self.rowdoc = lambda d, xs: sum([d[:, 2052-r-60] for r in xs]) / len(xs)
-        self.mw = MidWorker(usedisp=usedisp, verbose=verbose)
-        self.biases, self.flats = {}, {}, {}
-
-    def prepare(self, files, logonly=False, crop=True, rot=True, badrow=False,
-            substbias=False, cleanhead=True, filmove=True, process=True):
-        """Method for packet preparing and/or logging of raw images,
-        mostly taken on spectrographs of 6-meter telescope.
-        @param files: list of raw image parameters with its paths
-        @param logonly: create only log, without image processing.
-        @param crop: crop each image depending on its shape, which is
-            determine used CCD chip
-        @param rot: rotate image clockwise
-        @param badrow: mask bad rows on NES CCD chip
-        @param cleanhead: remove empty strings in fits headers
-        @param filmove: move or not source files (raw images) to
-                self.arch_dir, after they are have been processed
-        """
-        if substbias and type(substbias) is str:
-            self.bias = pyfits.getdata(substbias)
-            self.substbias = True
-        else:
-            self.substbias = False
-        self.crop = crop
-        self.rot = rot
-        self.badrow = badrow
-        if files and filmove and not os.path.isdir(self.dest_dir):
-            os.mkdir(self.dest_dir)
-        for (file_pth, num, date, fflag, keymode) in sorted(files):
-            if self.verbose:
-                print pyfits.info(file_pth)
-                print "Open file", file_pth
-            curfts = pyfits.open(file_pth) #mode="update"
-            #head = curfts[0].header
-            self.logger(curfts, num, date, file_pth, keymode=keymode)
-            if logonly:
-                continue
-            if cleanhead:
-                # Clean header - delete empty strings:
-                del curfts[0].header['']
-                #head.add_blank(after='SHSTAT')
-            # Write header to FITS object (not to disk!)
-            #curfts[0].header = head
-            if file_pth in self.biases:
-                if filmove:
-                    shutil.move(file_pth, self.dest_dir)
-                continue
-            elif file_pth in self.flats:
-                newname = self.flats[file_pth]
-                hilim = 9000
-            else:
-                date = "".join((str(date[0]), str(date[1]).zfill(2),
-                                              str(date[2]).zfill(2)))
-                newname = os.path.join(self.dest_dir, "".join((date, self.sep,
-                            num, self.flag, self.postfix, self.ext)))
-                hilim = 2600
-            if process:
-                self.processdata(curfts, hilim=hilim)
-            self.savefits(curfts, newname)
-            if filmove:
-                shutil.move(file_pth, self.dest_dir)
-            if file_pth in self.flats:
-                continue
-            self.mw.savebdf(newname, "l"+num+"d.bdf")
-
-    def crebias(self, biasname="bias", files=None, filmove=True, log=True):
-        if files:
-            self.prepare(files, process=False, cleanhead=False,
-                        log=log, filmove=filmove)
-        elif not self.biases:
-            print "No biases, return"
-            return
-        for file_pth, newname in self.biases.items():
-            if not os.path.isfile(newname):
-                shutil.copy2(file_pth, newname)
-        self.mw.crebias(self.biases.values(), biasname=biasname)
-
-    def creflat(self, flatname="flat"):
-        if self.flats:
-            self.mw.creflat(self.flats.values(), flatname=flatname)
-            self.mw.filtcosm(flatname)
-
-    def processdata(self, curfts, hilim=600):
-        """Process image data: substract bias, crop, rotate, mask bad rows"""
-        data = curfts[0].data
-        dshape = data.shape
-        if self.substbias:
-            data -= self.bias
-        if self.badrow:
-            self.nesbadrow(data, hilim=hilim)
-        if self.crop and dshape[0] in self.imgcut_dct:
-            x1, x2, y1, y2 = self.imgcut_dct[dshape[0]]
-            #midas.extractImag({name} = {namef}[@{x1},@{y1}:@{x2},@{y2}])
-            data = data[y1:y2, x1:x2]
-        if self.rot and dshape[0] >= 2052:
-            data = np.rot90(data)
-        #if self.flip:
-            ## flip for Lynx/Pfes
-            #data = np.flipud(data)
-        # Write result
-        curfts[0].data = data
-        curfts[0].scale('float32', 'old') # int16
-
-    def savefits(self, curfts, newname):
-        """Save current fits"""
-        if os.path.isfile(newname):
-            bcknam = newname.replace("."+self.ext, "-backup."+self.ext)
-            shutil.move(newname, bcknam)
-        try:
-            curfts.writeto(newname)
-        except pyfits.core.VerifyError:
-            curfts.verify(self.fixfitslog)
-            curfts.writeto(newname)
-        curfts.close()
-
-    def nesbadrow(self, d, lowcut=-25, hilim=600):
-        """Mask bad pixels in raw images taken with Uppsala NES chip.
-        """
-        for row in self.nesbadrows:
-            d[:, 2052-row[0]-60] = self.rowdoc(d, row[1:])
-        d[:, 1992] = (d[:, 1991] + d[:, 1993]) / 2
-        d[:, 1997] = (d[:, 1996] + d[:, 1998]) / 2
-        d[:, 2005] = (d[:, 2004] + d[:, 2006]) / 2
-        d[:, 2008] = (d[:, 2007] + d[:, 2009]) / 2
-        d[:, 2010] = (d[:, 2009] + d[:, 2011]) / 2
-        d[:, 2014] = (d[:, 2013] + d[:, 2015]) / 2
-        d[:, 2027] = (d[:, 2026] + d[:, 2028]) / 2
-        for i in xrange(2036, 2038):
-            d[i, :22] = (d[i-1, :22] + d[i-2, :22])/2
-            d[i, 1337:1569] = (d[i-1, 1337:1569] + d[i-2, 1337:1569])/2
-        for i in xrange(2038, 2040):
-            d[i, :24] = (d[i-1, :24] + d[i-2, :24])/2
-            d[i, 1337:1569] = (d[i-1, 1337:1569] + d[i-2, 1337:1569])/2
-        for i in xrange(2040, 2042):
-            d[i, :26] = d[i-1, :26]
-            d[i, 1125:1692] = (d[i-1, 1125:1692] + d[i-2, 1125:1692])/2
-        for i in xrange(2042, 2044):
-            d[i, :34] = d[i-1, :34]
-            #d[i, 1087:27] = d[i-1, 1087:27]
-        #for i in xrange(2044, 2046):
-            #d[i, :2052-2005] = d[i-1, :2052-2005]
-            #d[i, 2052-1130:2052-15] = d[i-1, 2052-1130:2052-15]
-        #zonlim = (0, 250, 1979) #[31:96, 1988:2040]
-        zonlim = (1, 118, 1988)
-        zone = d[zonlim[0]:zonlim[1], zonlim[2]:]
-        med = min(np.median(zone), hilim)
-        d[zonlim[0]:zonlim[1], zonlim[2]:][np.where(zone > hilim)] = med
-        #d[:280, 2004:2006][np.where(d[:280, 2004:2006] > hilim)] = med
-        d[:280, 2004:2011][np.where(d[:280, 2004:2011] > hilim)] = med
-        d[np.where(d < lowcut)] = lowcut
+        self.biases, self.flats, self.calib = {}, {}, {}
 
     def modkey(self, val, keymode=False):
         """Modify input value, depending on keymode.
@@ -646,7 +468,7 @@ class Preparer(MidWorker):
             ra, dec, az, zen = self.getcoords(curfts[0].header, keymode=keymode)
         except (ValueError, TypeError, AttributeError):
             print "Trying to fix", file_pth, "FITS header."
-            curfts.verify(self.fixfitslog)
+            curfts.verify(self.fitsfixmode)
             keymode = "str"
             ra, dec, az, zen = self.getcoords(curfts[0].header, keymode=keymode)
         head = curfts[0].header
@@ -682,25 +504,25 @@ class Preparer(MidWorker):
             time = clocker(time_start)
         except TypeError:
             time = self.pickhead(head, 'raw', 'TM-START', 'TM_START')
-        self.exp = int(self.pickhead(head, 'raw', 'EXPTIME'))
-        self.obj = self.pickhead(head, 'raw', 'OBJECT')
-        self.flag = self.keyset(self.obj)
-        if self.flag == "b" and self.exp != 0:
-            self.flag = "o"
-        elif self.exp == 0 and self.flag != "b":
-            self.flag = "b"
+        exp = int(self.pickhead(head, 'raw', 'EXPTIME'))
+        obj = self.pickhead(head, 'raw', 'OBJECT')
+        flag = self.keyset(obj)
+        if flag == "b" and exp != 0:
+            flag = "o"
+        elif exp == 0 and flag != "b":
+            flag, obj = "b", "BIAS"
 
-        if self.flag == "b":
+        if flag == "b":
             newname = "".join(('b', num, self.postfix, self.ext))
             self.biases[file_pth] = newname
-        elif self.flag == "f":
+        elif flag == "f":
             newname = "".join(('f', num, self.postfix, self.ext))
             self.flats[file_pth] = newname
 
         dateobs = head.get('DATE-OBS')
         if self.verbose:
-            self.warner(self.exp, self.obj, num)
-        self.obs_dct[int(num)] = [date, self.flag, self.obj, time, self.exp, ra, dec,
+            self.warner(exp, obj, num)
+        self.obs_dct[int(num)] = [date, flag, obj, time, exp, ra, dec,
                 az, zen, dateobs]
 
     def warner(self, exp, obj, num):
@@ -710,25 +532,15 @@ class Preparer(MidWorker):
         #if head.get('CCDTEMP') != None and -103 > head.get('CCDTEMP') > -97:
             #print "incorrect CCDTEMP", ccdtemp, "in spectrum number", num
 
-    def savelog(self, filenam="night", wdir=""):
-        """Save observation log to file."""
-        if os.path.isfile(os.path.join(wdir, filenam + ".log")):
-            shutil.move(os.path.join(wdir, filenam + ".log"),
-                        os.path.join(wdir, filenam + ".old"))
-        obslog = open(os.path.join(wdir, filenam+".log"), "w")
+    def logtostr(self):
+        log = []
         for num, val in sorted(self.obs_dct.items()):
-            obsstr = self.logstringer(num, val)
-            print >> obslog, obsstr
-        obslog.close()
+            log.append(self.logstringer(num, val))
+        return log
 
-    def savejournal(self, filenam="journal", wdir=""):
-        """Save observation journal to file."""
-        journpth = os.path.join(wdir, filenam + ".log")
-        if os.path.isfile(journpth):
-            shutil.move(journpth, os.path.join(wdir, filenam + ".old"))
-        journ = open(journpth, 'w')
+    def journaltostr(self):
+        jrn = []
         for key, val in sorted(self.journal_dct.items()):
-            #print "{0:8s}: {1:s}".format(key, ", ".join(map(str, sorted(val))))
             if not val or val == [" "]:
                 continue
             elif key in ("CCDTEMP", "P_DEWAR") and val:
@@ -736,10 +548,8 @@ class Preparer(MidWorker):
             elif key in ("DATE-OBS", "ORIGIN", "AUTHOR", "OBSERVER",
                          "SEEING") and val:
                 val = [", ".join(map(str, val))]
-            print >> journ, "%9s %s" % (key, " ".join(map(str, val)))
-            if self.verbose:
-                print "%8s: %s" % (key, ", ".join(map(str, sorted(val))))
-        journ.close()
+            jrn.append("%8s %s" % (key, " ".join(map(str, val))))
+        return jrn
 
     def logstringer(self, num, val):
         """Make a string for given parameters of observation log."""
@@ -752,5 +562,206 @@ class Preparer(MidWorker):
         dec = self.seper("%04.1f", *dec)
         az = self.seper("%04.1f", *az)
         zen = self.seper("%04.1f", *zen)
-        return "%3d %13s %15s %8s %4d %11s %11s %11s %10s %s" % (int(num),
+        return "%3d %10s %15s %8s %4d %11s %11s %11s %10s %s" % (int(num),
                 date, obj, time, exp, ra, dec, az, zen, dateobs)
+
+
+class Preparer(MidWorker, Logger):
+    """Class for image processing with MIDAS, against MIDAS sripting language =)
+    We use MIDAS routines through pyMidas, but replace it with numpy and pyfits,
+    if it is possible.
+
+    This code also heavily depends of some specific characteristics of SAO RAS
+    spectral archive, mostly on spectra taken on Nesmyth Echelle Spectrograph of
+    6-meter telescope.
+    It is not pipeline package, but a set of non-interactive methods for packet
+    processing. It contains methods for averaging images, substracting bias
+    frame etc.
+    @param dest_dir: destination dir for moving processed fits files. Could be
+        omitted.
+    @param usedisp: use Midas display for loading images using Midas routines
+    """
+    def __init__(self, dest_dir="arch", usedisp=False, verbose=False):
+        self.dest_dir = dest_dir
+        self.verbose = bool(verbose)
+        self.usedisp = usedisp
+        self.fitsfixmode = {True: 'fix', False: 'silentfix'}[self.verbose]
+        self.sep, self.postfix, self.ext = '_', '.', 'fits'
+        #self.imgcut_dct = {2052: (4, 1992, 4, 2039), # NES 2052x2052 chip
+        self.imgcut_dct = {2052: (3, 2048, 4, 2039), # NES 2052x2052 chip
+        # Resulting shape after cut for NES images with cuts (4, 1992, 4, 2039)
+        # will be (2035, 1988). NES with full use: (3, 2048, 0, 2046),
+        # shape will be (2045, 2046)
+        2068: (0, 2048, 2, 2048), # LPR 2068x2072 chip
+        1050: (5, 1040, 2, 1157) # PFES/Lynx 1050x1170 chip
+        }
+        self.nesbadrows = [(338, 337, 339), (568, 567, 569),
+        (336, 336, 335), (335, 336), (1044, 1044, 1043, 1042),
+        (1043, 1044), (1042, 1044), (433, 433, 434, 435),
+        (434, 433), (435, 433), (185, 185, 184), (184, 185), (1903, 1903, 1902),
+        (1902, 1903), (1229, 1229, 1228), (1228, 1229), (47, 47, 48), (48, 47)]
+        self.rowdoc = lambda d, xs: sum([d[:, 2052-r-60] for r in xs]) / len(xs)
+        self.mw = MidWorker(usedisp=usedisp, verbose=verbose)
+        self.Lg = Logger(fitsfixmode=self.fitsfixmode, verbose=verbose)
+
+    def prepare(self, files, logonly=False, crop=True, rot=True, badrow=False,
+            substbias=False, cleanhead=True, filmove=True, process=True):
+        """Method for packet preparing and/or logging of raw images,
+        mostly taken on spectrographs of 6-meter telescope.
+        @param files: list of raw image parameters with its paths
+        @param logonly: create only log, without image processing.
+        @param crop: crop each image depending on its shape, which is
+            determine used CCD chip
+        @param rot: rotate image clockwise
+        @param badrow: mask bad rows on NES CCD chip
+        @param cleanhead: remove empty strings in fits headers
+        @param filmove: move or not source files (raw images) to
+                self.arch_dir, after they are have been processed
+        """
+        if substbias and type(substbias) is str:
+            self.bias = pyfits.getdata(substbias)
+            self.substbias = True
+        else:
+            self.substbias = False
+        self.crop = crop
+        self.rot = rot
+        self.badrow = badrow
+        if files and filmove and not os.path.isdir(self.dest_dir):
+            os.mkdir(self.dest_dir)
+        for (file_pth, num, date, fflag, keymode) in sorted(files):
+            if self.verbose:
+                print pyfits.info(file_pth)
+                print "Open file", file_pth
+            curfts = pyfits.open(file_pth) #mode="update"
+            #head = curfts[0].header
+            self.Lg.logger(curfts, num, date, file_pth, keymode=keymode)
+            if logonly:
+                continue
+            if cleanhead:
+                # Clean header - delete empty strings:
+                del curfts[0].header['']
+                #head.add_blank(after='SHSTAT')
+            # Write header to FITS object (not to disk!)
+            #curfts[0].header = head
+            if file_pth in self.Lg.biases:
+                if filmove:
+                    shutil.move(file_pth, self.dest_dir)
+                continue
+            elif file_pth in self.Lg.flats:
+                newname = self.Lg.flats[file_pth]
+                hilim = 9000
+            else:
+                date = "".join((str(date[0]), str(date[1]).zfill(2),
+                                              str(date[2]).zfill(2)))
+                newname = os.path.join(self.dest_dir, "".join((date, self.sep,
+                            num, self.postfix, self.ext)))
+                hilim = 2600
+            if process:
+                self.processdata(curfts, hilim=hilim)
+            self.savefits(curfts, newname)
+            if filmove:
+                shutil.move(file_pth, self.dest_dir)
+            if file_pth in self.Lg.flats:
+                continue
+            self.mw.savebdf(newname, "l"+num+"d.bdf")
+
+    def crebias(self, biasname="bias", files=None, filmove=True, log=True):
+        if files:
+            self.prepare(files, process=False, cleanhead=False,
+                        log=log, filmove=filmove)
+        elif not self.Lg.biases:
+            print "No biases, return"
+            return
+        for file_pth, newname in self.Lg.biases.items():
+            if not os.path.isfile(newname):
+                shutil.copy2(file_pth, newname)
+        self.mw.crebias(self.Lg.biases.values(), biasname=biasname)
+
+    def creflat(self, flatname="flat"):
+        if self.Lg.flats:
+            self.mw.creflat(self.Lg.flats.values(), flatname=flatname)
+            self.mw.filtcosm(flatname)
+
+    def processdata(self, curfts, hilim=600):
+        """Process image data: substract bias, crop, rotate, mask bad rows"""
+        data = curfts[0].data
+        dshape = data.shape
+        if self.substbias:
+            data -= self.bias
+        if self.badrow:
+            self.nesbadrow(data, hilim=hilim)
+        if self.crop and dshape[0] in self.imgcut_dct:
+            x1, x2, y1, y2 = self.imgcut_dct[dshape[0]]
+            #midas.extractImag({name} = {namef}[@{x1},@{y1}:@{x2},@{y2}])
+            data = data[y1:y2, x1:x2]
+        if self.rot and dshape[0] >= 2052:
+            data = np.rot90(data)
+        #if self.flip:
+            ## flip for Lynx/Pfes
+            #data = np.flipud(data)
+        # Write result
+        curfts[0].data = data
+        curfts[0].scale('float32', 'old') # int16
+
+    def savefits(self, curfts, newname):
+        """Save current fits"""
+        if os.path.isfile(newname):
+            bcknam = newname.replace("."+self.ext, "-backup."+self.ext)
+            shutil.move(newname, bcknam)
+        try:
+            curfts.writeto(newname)
+        except pyfits.core.VerifyError:
+            curfts.verify(self.fitsfixmode)
+            curfts.writeto(newname)
+        curfts.close()
+
+    def nesbadrow(self, d, lowcut=-25, hilim=600):
+        """Mask bad pixels in raw images taken with Uppsala NES chip.
+        """
+        for row in self.nesbadrows:
+            d[:, 2052-row[0]-60] = self.rowdoc(d, row[1:])
+        d[:, 1992] = (d[:, 1991] + d[:, 1993]) / 2
+        d[:, 1997] = (d[:, 1996] + d[:, 1998]) / 2
+        d[:, 2005] = (d[:, 2004] + d[:, 2006]) / 2
+        d[:, 2008] = (d[:, 2007] + d[:, 2009]) / 2
+        d[:, 2010] = (d[:, 2009] + d[:, 2011]) / 2
+        d[:, 2014] = (d[:, 2013] + d[:, 2015]) / 2
+        d[:, 2027] = (d[:, 2026] + d[:, 2028]) / 2
+        for i in xrange(2036, 2038):
+            d[i, :22] = (d[i-1, :22] + d[i-2, :22])/2
+            d[i, 1337:1569] = (d[i-1, 1337:1569] + d[i-2, 1337:1569])/2
+        for i in xrange(2038, 2040):
+            d[i, :24] = (d[i-1, :24] + d[i-2, :24])/2
+            d[i, 1337:1569] = (d[i-1, 1337:1569] + d[i-2, 1337:1569])/2
+        for i in xrange(2040, 2042):
+            d[i, :26] = d[i-1, :26]
+            d[i, 1125:1692] = (d[i-1, 1125:1692] + d[i-2, 1125:1692])/2
+        for i in xrange(2042, 2044):
+            d[i, :34] = d[i-1, :34]
+            #d[i, 1087:27] = d[i-1, 1087:27]
+        #for i in xrange(2044, 2046):
+            #d[i, :2052-2005] = d[i-1, :2052-2005]
+            #d[i, 2052-1130:2052-15] = d[i-1, 2052-1130:2052-15]
+        #zonlim = (0, 250, 1979) #[31:96, 1988:2040]
+        zonlim = (1, 118, 1988)
+        zone = d[zonlim[0]:zonlim[1], zonlim[2]:]
+        med = min(np.median(zone), hilim)
+        d[zonlim[0]:zonlim[1], zonlim[2]:][np.where(zone > hilim)] = med
+        #d[:280, 2004:2006][np.where(d[:280, 2004:2006] > hilim)] = med
+        d[:280, 2004:2011][np.where(d[:280, 2004:2011] > hilim)] = med
+        d[np.where(d < lowcut)] = lowcut
+
+    def savelog(self, filenam="night", wdir=""):
+        """Save observation log to file."""
+        if os.path.isfile(os.path.join(wdir, filenam + ".log")):
+            shutil.move(os.path.join(wdir, filenam + ".log"),
+                        os.path.join(wdir, filenam + ".old"))
+        logfile = open(os.path.join(wdir, filenam+".log"), "w")
+        log = self.Lg.logtostr()
+        for line in log:
+            print >> logfile, line
+        print >> logfile
+        log = self.Lg.journaltostr()
+        for line in log:
+            print >> logfile, line
+        logfile.close()
