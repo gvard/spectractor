@@ -342,3 +342,200 @@ def mod_journal(journal, sn=10, rvc=True, rvcorr_dct=None, instr=None,
             if type(journal[nig]) is not list:
                 journal[nig] = list(journal[nig])
             journal[nig][5] += rvcorr_dct[nig]
+
+
+def clocker(val, divc=1.):
+    """Convert float value to tuple of (int h, int m, float s).
+    Useful for coordinates and times.
+    @param divc: division coefficient for val
+    """
+    h, rest = divmod(val/divc, 1)
+    m, rest = divmod(rest * 60, 1)
+    s = round(rest * 60, 2)
+    return int(h), int(m), s
+
+
+class Logger:
+    def __init__(self, fitsfixmode='silentfix', verbose=False):
+        self.fitsfixmode = fitsfixmode
+        self.verbose = verbose
+        # Define keys, presented in FITS headers:
+        self.stdkeys = ['AUTHOR', 'REFERENC', 'DATE', 'ORIGIN', 'DATE-OBS',
+            'TELESCOP', 'INSTRUME', 'OBSERVER', 'OBJECT', 'EQUINOX', 'EPOCH']
+        self.nonstdkeys = ['OBSERVAT', 'CHIPID', 'DETNAME', 'CCDTEMP',
+                           'P_DEWAR', 'SEEING', 'PROG-ID']
+        #self.otherkeys = ['WIND', 'T_OUT', 'T_IN', 'T_MIRR', 'PRES',
+                           #'ST', 'MT', 'FOCUS']
+        self.journal_dct = {}
+        self.obs_dct = {}
+        self.key_dct = {"bias": 'b', "thar": 't', "flatfield": 'f', "ff": 'f',
+                        "ll": 'f', "sky": 's', "ref.ima.": 'r'}
+        self.postfix, self.ext = '.', 'fits'
+        self.print_str = "[01;31m%s not found in header! Set it to zero.[0m"
+        self.keyset = lambda key: self.key_dct.get(key.lower()) \
+                if self.key_dct.get(key.lower()) else 'o'
+        self.trygetkey = lambda head, *args: filter(head.has_key, args)
+        self.seper = lambda fstr, h, m, s: \
+                "%s" % ":".join(["%02d" % h, "%02d" % m, fstr % s])
+        self.biases, self.flats, self.calib = {}, {}, {}
+
+    def modkey(self, val, keymode=False):
+        """Modify input value, depending on keymode.
+        Because of different standards of writing FITS headers in SAO RAS,
+        we need to extract the right value. For example, val maybe string,
+        float(string) or int(float * const).
+        @param keymode: False (None), 'flstr' or 'str'. Define, how we can
+            extract correct information from given value
+        """
+        if val and not keymode and 3000 < abs(val) < 1250000:
+            val = val / 3600.
+        elif keymode == "flstr": # or abs(val) > 1250000:
+            val = str(val)
+            val = float(val[-4:])/3600 + int(val[-6:-4])/60. + int(val[:-6])
+        elif keymode == "str":
+            if type(val) is str and " " in val:
+                val = val.split()
+            elif type(val) is str and ":" in val:
+                val = val.split(":")
+            val = float(val[2])/3600 + int(val[1])/60. + int(val[0])
+        return val
+
+    def pickhead(self, head, keymode, *args):
+        """Look into FITS header for existance of keys, return head[key].
+        First, we look on existence of keys, containing in args.
+        Second, we get existing value from header or return zero.
+        """
+        key = self.trygetkey(head, *args)
+        if key:
+            val = head.get(key[0])
+        else:
+            print self.print_str % " ".join(args)
+            return 0
+        if keymode == "raw":
+            return val
+        else:
+            return self.modkey(val, keymode=keymode)
+
+    def getcoords(self, head, keymode=False):
+        ra = self.pickhead(head, keymode, 'RA')
+        if not keymode:
+            ra = ra / 15.
+        dec = self.pickhead(head, keymode, 'DEC')
+        az  = self.pickhead(head, keymode, 'A_PNT', 'AZIMUTH')
+        zen = self.pickhead(head, keymode, 'Z_PNT', 'ZDIST', 'ZENDIST')
+        if type(az) in (int, float) and az < 0:
+            az += 360
+        #sidertime_start = self.pickhead(head, keymode, 'ST')
+        ra, dec = clocker(ra), clocker(dec)
+        az, zen = clocker(az), clocker(zen)
+        return ra, dec, az, zen
+
+    def logger(self, curfts, num, date, file_pth, keymode=False):
+        """Create an observation log for input images.
+        Search for some specific keys in given fits header and write it
+        to 'journal': journal_dct and obs_dct dictionaries.
+        """
+        # Read coords
+        try:
+            ra, dec, az, zen = self.getcoords(curfts[0].header, keymode=keymode)
+        except (ValueError, TypeError, AttributeError):
+            print "Trying to fix", file_pth, "FITS header."
+            curfts.verify(self.fitsfixmode)
+            keymode = "str"
+            ra, dec, az, zen = self.getcoords(curfts[0].header, keymode=keymode)
+        head = curfts[0].header
+        #except (TypeError, AttributeError):
+            #ra, dec, az, zen = (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)
+        # 199xxxxx(DVD01) 20030810(DVD07)--20080331(DVD31), since 20081103_002
+        wind = self.pickhead(head, 'raw', 'WIND')
+        # This block in 20030810(DVD07)--20080331(DVD31), since 20081103_002
+        moscowtime_start = self.pickhead(head, 'raw', 'MT') / 3600.
+        focus = self.pickhead(head, 'raw', 'FOCUS')
+        t_out = self.pickhead(head, 'raw', 'T_OUT')
+        t_in = self.pickhead(head, 'raw', 'T_IN')
+        t_mirr = self.pickhead(head, 'raw', 'T_MIRR')
+        pres = self.pickhead(head, 'raw', 'PRES')
+        # HUMD in 20070902(DVD28)--20080331(DVD31), since 20081103_002
+        hum = self.pickhead(head, 'raw', 'HUMD')
+        # JD since 20080422(DVD31)
+        jd = head.get('JD')
+        # keymode is here!
+        self.journal_dct['KEYMODE'] = [keymode]
+        for key in (self.nonstdkeys + self.stdkeys):
+            if key not in self.journal_dct and head.get(key):
+                self.journal_dct[key] = [head.get(key),]
+            elif head.get(key) and head.get(key) not in self.journal_dct[key]:
+                self.journal_dct[key].append(head.get(key))
+            elif key not in self.journal_dct and not head.get(key):
+                self.journal_dct[key] = []
+        # Block of standard "observation" keys
+        time_end = self.pickhead(head, 'raw', 'TM_END') / 3600.
+        try:
+            time_start = self.pickhead(head, 'raw', 'TM-START',
+                                                    'TM_START') / 3600.
+            time = clocker(time_start)
+        except TypeError:
+            time = self.pickhead(head, 'raw', 'TM-START', 'TM_START')
+        exp = int(self.pickhead(head, 'raw', 'EXPTIME'))
+        obj = self.pickhead(head, 'raw', 'OBJECT')
+        flag = self.keyset(obj)
+        if flag == "b" and exp != 0:
+            flag = "o"
+        elif exp == 0 and flag != "b":
+            flag, obj = "b", "BIAS"
+
+        if flag == "b":
+            newname = "".join(('b', num, self.postfix, self.ext))
+            self.biases[file_pth] = newname
+        elif flag == "f":
+            newname = "".join(('f', num, self.postfix, self.ext))
+            self.flats[file_pth] = newname
+        elif flag == "t":
+            newname = "".join(('l', num, "t", self.postfix, self.ext))
+            self.calib[file_pth] = newname
+
+        dateobs = head.get('DATE-OBS')
+        if self.verbose:
+            self.warner(exp, obj, num)
+        self.obs_dct[int(num)] = [date, flag, obj, time, exp, ra, dec,
+                az, zen, dateobs]
+
+    def warner(self, exp, obj, num):
+        """Warn about some problems."""
+        if exp == 0 and str(obj).lower() != "bias":
+            print "Wrong object name:", obj, "with exp=0 in spectrum", num
+        #if head.get('CCDTEMP') != None and -103 > head.get('CCDTEMP') > -97:
+            #print "incorrect CCDTEMP", ccdtemp, "in spectrum number", num
+
+    def logtostr(self):
+        log = []
+        for num, val in sorted(self.obs_dct.items()):
+            log.append(self.logstringer(num, val))
+        return log
+
+    def journaltostr(self):
+        jrn = []
+        for key, val in sorted(self.journal_dct.items()):
+            if not val or val == [" "]:
+                continue
+            elif key in ("CCDTEMP", "P_DEWAR") and val:
+                val = [str(sum(val)/len(val))]
+            elif key in ("DATE-OBS", "ORIGIN", "AUTHOR", "OBSERVER",
+                         "SEEING") and val:
+                val = [", ".join(map(str, val))]
+            jrn.append("%8s %s" % (key, " ".join(map(str, val))))
+        return jrn
+
+    def logstringer(self, num, val):
+        """Make a string for given parameters of observation log."""
+        date, flag, obj, time, exp, ra, dec, az, zen, dateobs = val
+        date = "".join((str(date[0]), str(date[1]).zfill(2),
+                                     str(date[2]).zfill(2)))+" "+flag
+        #date = "".join(map(str, date))+" "+flag
+        time = self.seper("%02d", *time)
+        ra = self.seper("%04.1f", *ra)
+        dec = self.seper("%04.1f", *dec)
+        az = self.seper("%04.1f", *az)
+        zen = self.seper("%04.1f", *zen)
+        return "%3d %10s %15s %8s %4d %11s %11s %11s %10s %s" % (int(num),
+                date, obj, time, exp, ra, dec, az, zen, dateobs)
