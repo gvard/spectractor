@@ -518,6 +518,9 @@ class Logger:
         elif flag == "f":
             newname = "".join(('f', num, self.postfix, self.ext))
             self.flats[file_pth] = newname
+        elif flag == "t":
+            newname = "".join(('l', num, "t", self.postfix, self.ext))
+            self.calib[file_pth] = newname
 
         dateobs = head.get('DATE-OBS')
         if self.verbose:
@@ -653,6 +656,9 @@ class Preparer(MidWorker, Logger):
             elif file_pth in self.Lg.flats:
                 newname = self.Lg.flats[file_pth]
                 hilim = 9000
+            elif file_pth in self.Lg.calib:
+                newname = self.Lg.calib[file_pth]
+                hilim = 5000
             else:
                 date = "".join((str(date[0]), str(date[1]).zfill(2),
                                               str(date[2]).zfill(2)))
@@ -665,6 +671,9 @@ class Preparer(MidWorker, Logger):
             if filmove:
                 shutil.move(file_pth, self.dest_dir)
             if file_pth in self.Lg.flats:
+                continue
+            elif file_pth in self.Lg.calib:
+                self.mw.filtcosm(newname, cosm="c"+num)
                 continue
             self.mw.savebdf(newname, "l"+num+"d.bdf")
 
