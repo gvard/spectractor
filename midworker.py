@@ -259,6 +259,9 @@ class MidWorker:
             self.loima(bdf_pth)
 
     def crebias(self, files, biasname="bias", med=None, delfits=False):
+        """Create bias frame by averaging a set of images.
+        @param med: value of low and high interval in median averaging
+        """
         if not med:
             med = self.med
         catname = biasname+".cat"
@@ -267,7 +270,7 @@ class MidWorker:
             midas.addIcat(catname, file_pth)
         midas.averageImag(biasname, "=", catname, "? +", self.avermed(med))
         self.pltgra(biasname, "row", 1000, over=False)
-        midas.outdiskFits(biasname, os.path.join('bias.fits'))
+        midas.outdiskFits(biasname, biasname+'.fits')
 
     def creflat(self, files, flatname="flat", delcat=False, averopt=""):
         """Create flat field average image
@@ -280,8 +283,6 @@ class MidWorker:
         for file_pth in files:
             midas.addIcat(catname, file_pth)
         midas.averageImag(flatname, "=", catname, "?", averopt)
-        if self.usedisp:
-            self.loima(flatname)
         self.pltgra(flatname, "col", 1000, over=False)
 
     def filtcosm(self, specname, ns=2, cosm="cosm"):
@@ -603,7 +604,7 @@ class Preparer(MidWorker, Logger):
         (1043, 1044), (1042, 1044), (433, 433, 434, 435),
         (434, 433), (435, 433), (185, 185, 184), (184, 185), (1903, 1903, 1902),
         (1902, 1903), (1229, 1229, 1228), (1228, 1229), (47, 47, 48), (48, 47)]
-        self.rowdoc = lambda d, xs: sum([d[:, 2052-r-60] for r in xs]) / len(xs)
+        self.rowdoc = lambda d, xs: sum([d[:, 1992-r] for r in xs]) / len(xs)
         self.mw = MidWorker(usedisp=usedisp, verbose=verbose)
         self.Lg = Logger(fitsfixmode=self.fitsfixmode, verbose=verbose)
 
@@ -627,7 +628,7 @@ class Preparer(MidWorker, Logger):
             of the processing procedures (crop, rot, badrow, substbias)
             will be omitted
         """
-        if substbias and type(substbias) is str:
+        if substbias and process and type(substbias) is str:
             self.bias = pyfits.getdata(substbias)
             self.substbias = True
         else:
@@ -762,6 +763,7 @@ class Preparer(MidWorker, Logger):
         zonlim = (1, 118, 1988)
         zone = d[zonlim[0]:zonlim[1], zonlim[2]:]
         med = min(np.median(zone), hilim)
+        hilim = max(np.mean(d), hilim)
         d[zonlim[0]:zonlim[1], zonlim[2]:][np.where(zone > hilim)] = med
         #d[:280, 2004:2006][np.where(d[:280, 2004:2006] > hilim)] = med
         d[:280, 2004:2011][np.where(d[:280, 2004:2011] > hilim)] = med
