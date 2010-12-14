@@ -335,6 +335,10 @@ def mod_journal(journal, sn=10, rvc=True, rvcorr_dct=None, instr=None,
             del journal[nig]
             continue
         if not rvc:
+            if type(journal[nig]) is not list:
+                journal[nig] = list(journal[nig])
             journal[nig][5] = 0
         if rvcorr_dct and nig in rvcorr_dct:
+            if type(journal[nig]) is not list:
+                journal[nig] = list(journal[nig])
             journal[nig][5] += rvcorr_dct[nig]
