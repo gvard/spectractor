@@ -1,5 +1,8 @@
-'''This module is part of Spectractor. It contains functions for
-plotting.
+
+'''This is Spectractor submodule containing classes for interactive actions
+with matplotlib figures.
+
+@author: Dmitry Nasonov
 '''
 
 

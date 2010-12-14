@@ -1,7 +1,7 @@
 
-'''This module is main part of Spectractor. It contains functions for
-read/write binary data (ex. Dech data formats, FITS) and for manipulating
-data arrays.
+'''This module is main part of Spectractor, which contain functions
+for read/write binary data (e.g. Dech data formats, FITS)
+and for manipulating data arrays.
 
 @author: Dmitry Nasonov
 '''

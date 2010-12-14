@@ -1,6 +1,6 @@
 
-'''This module is part of Spectractor. It contains functions for
-managing various files and journals.
+'''Spectractor submodule containing functions for managing various files,
+journals, creating logs etc.
 
 @author: Dmitry Nasonov
 '''
@@ -356,6 +356,10 @@ def clocker(val, divc=1.):
 
 
 class Logger:
+    """Extract information from FITS headers of given FITS files, create log
+    @param fitsfixmode: when FIX header is incorrect, try to fix it with given
+        option. Can be 'fix' and 'silentfix'
+    """
     def __init__(self, fitsfixmode='silentfix', verbose=False):
         self.fitsfixmode = fitsfixmode
         self.verbose = verbose

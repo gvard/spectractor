@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+"""Setup script for Spectractor"""
+
 import os
 from distutils.core import setup, Extension
 from distutils.util import get_platform

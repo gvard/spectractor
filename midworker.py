@@ -1,7 +1,11 @@
 
-'''This is Spectractor module for some specific calculations.
+'''Spectractor submodule containing classes which interact with ESO MIDAS.
+Interaction with ESO MIDAS was made through pymidas module.
 With pyMidas we calculate heliocentric correction and
 with pyephem we calculate precession.
+Midworker class is the main part submodule.
+
+@author: Dmitry Nasonov
 '''
 
 import os, sys, shutil
