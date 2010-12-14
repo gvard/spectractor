@@ -7,8 +7,9 @@ from distutils.core import setup, Extension
 from distutils.util import get_platform
 from numpy import get_include
 
-description = """Spectractor is a library for manipulating one-dimentional
-astronomical spectra, containing number of functions in pure python.
+description = """Spectractor is a library for manipulating
+astronomical spectra images and one-dimentional extracted spectra,
+containing number of functions and classes in pure python.
 """
 
 if get_platform()[:3] == 'win':
@@ -33,6 +34,8 @@ setup(name='spectractor',
     url='http://spectractor.sourceforge.net/',
     package_dir={'spectractor': ''},
     packages=['spectractor'],
+    scripts=[os.path.join('scripts', 'liner.py'),
+             os.path.join('scripts', 'preparer.py')],
     ext_modules=spext
     #py_modules=['spectractor', 'serve'] + midworker_mod,
     )
