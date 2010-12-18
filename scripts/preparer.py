@@ -18,12 +18,14 @@ parser = OptionParser(description=desc, usage=usage, version="0.1.0")
 parser.add_option("-v", "--verbose", dest="verbose", action="store_true",
     default=False, help="Be more verbose")
 parser.add_option("-e", "--ext", type="str", dest="ext", action="callback",
-    callback=strclbck, default=["fits", "mt"],
+    callback=strclbck, default=("fits", "mt"),
     help="Set files extension, e.g. mt, fits")
-parser.add_option("-l", "--log", action="store_false", dest="log", default=True,
-    help="Set prepare mode instead of logonly.")
-parser.add_option("-L", "--logonly", action="store_true", dest="logonly",
-    default=False, help="Set prepare mode instead of logonly.")
+parser.add_option("-c", "--lims", type="int", dest="lims", default=None,
+    nargs=2, help="Set limits on Y-axis cuts on NES images as two ints")
+parser.add_option("-F", "--flats", type="int", dest="flats", default=None,
+    nargs=2, help="Set flat field image numbers as two ints")
+parser.add_option("-l", "--logonly", action="store_true", dest="logonly",
+    default=False, help="Make a log and save it to file, without processing")
 parser.add_option("-u", "--usedisp", action="store_false", dest="disp",
     default=True, help="Use display.")
 parser.add_option("-f", "--filemove", action="store_false", dest="filmove",
@@ -31,27 +33,30 @@ parser.add_option("-f", "--filemove", action="store_false", dest="filmove",
 parser.add_option("-b", "--badrow", action="store_true", dest="badrow",
     default=False, help="Use badrow for removing bad rows in NES images.")
 parser.add_option("-p", "--outpath", type="str", dest="outpath",
-    default="arch", help="Set output path. Default: arch")
-parser.add_option("-B", "--biases", type="str", dest="biases", default=[""],
-    action="callback", callback=strclbck, help="Set biases")
+    default="arch", help="Set output path. Default is 'arch'")
+parser.add_option("-B", "--biasname", type="str", dest="biasname",
+    default="bias", help="Set BIAS file name without extension")
 (opts, args) = parser.parse_args()
 if not args:
     args.append('./')
-if os.path.isdir(args[0]):
-    wdir = args[0]
-else:
-    wdir = "./"
 
 walk = Walker(args, exts=opts.ext, verbose=opts.verbose)
 walk.walk()
 files = walk.select_images()
 
 prg = Preparer(dest_dir=opts.outpath, usedisp=opts.disp, verbose=opts.verbose)
-biasname = "bias"
+if opts.lims:
+    prg.imgcut_dct[2052] =  opts.lims + list(prg.imgcut_dct[2052][2:])
+    print "Set cuts", prg.imgcut_dct[2052]
 prg.prepare(files, log="logonly")
-if not os.path.isfile(biasname+".fits"):
-    prg.crebias(filmove=opts.filmove, biasname=biasname)
-prg.savelog(wdir=wdir)
-prg.prepare(files, log=False, badrow=opts.badrow, filmove=opts.filmove,
-            substbias=biasname+".fits")
-prg.creflat()
+prg.savelog(wdir=opts.outpath)
+if not opts.logonly:
+    if opts.flats:
+        print "Get flats from", opts.flats[0], "to", opts.flats[1]
+        prg.Lg.flats = prg.Lg.select_nums(opts.flats, prfx="f")
+    if not os.path.isfile(opts.biasname+".fits"):
+        prg.crebias(filmove=opts.filmove, biasname=opts.biasname)
+    prg.prepare(files, log=False, badrow=opts.badrow, filmove=opts.filmove,
+                substbias=opts.biasname+".fits")
+    prg.creflat()
+prg.mw.bye()
