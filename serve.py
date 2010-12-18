@@ -381,6 +381,8 @@ class Logger:
         self.trygetkey = lambda head, *args: filter(head.has_key, args)
         self.seper = lambda fstr, h, m, s: \
                 "%s" % ":".join(["%02d" % h, "%02d" % m, fstr % s])
+        self.Sp = collections.namedtuple("Sp",
+                "date dateobs flag obj time exp ra dec az zen pth")
         self.biases, self.flats, self.calib = {}, {}, {}
 
     def modkey(self, val, keymode=False):
@@ -501,8 +503,8 @@ class Logger:
         dateobs = head.get('DATE-OBS')
         if self.verbose:
             self.warner(exp, obj, num)
-        self.obs_dct[int(num)] = [date, flag, obj, time, exp, ra, dec,
-                az, zen, dateobs]
+        self.obs_dct[int(num)] = self.Sp(date, dateobs, flag, obj,
+                time, exp, ra, dec, az, zen, file_pth)
 
     def warner(self, exp, obj, num):
         """Warn about some problems."""
@@ -510,6 +512,19 @@ class Logger:
             print "Wrong object name:", obj, "with exp=0 in spectrum", num
         #if head.get('CCDTEMP') != None and -103 > head.get('CCDTEMP') > -97:
             #print "incorrect CCDTEMP", ccdtemp, "in spectrum number", num
+
+    def select_nums(self, nums, prfx="f"):
+        """Select numbers in given range from obs_dct
+        @param nums: two boundary spectrum numbers as tuple or list
+        @param prfx: prefix in file name
+        """
+        out = {}
+        for i in xrange(nums[0], nums[1]+1):
+            if i in self.obs_dct:
+                num = str(i).zfill(3)
+                newname = "".join((prfx, num, self.postfix, self.ext))
+                out[self.obs_dct[i].pth] = newname
+        return out
 
     def logtostr(self):
         log = []
@@ -532,14 +547,14 @@ class Logger:
 
     def logstringer(self, num, val):
         """Make a string for given parameters of observation log."""
-        date, flag, obj, time, exp, ra, dec, az, zen, dateobs = val
-        date = "".join((str(date[0]), str(date[1]).zfill(2),
-                                     str(date[2]).zfill(2)))+" "+flag
+        #date, flag, obj, time, exp, ra, dec, az, zen, dateobs = val
+        date = "".join((str(val.date[0]), str(val.date[1]).zfill(2),
+                        str(val.date[2]).zfill(2))) +" "+ val.flag
         #date = "".join(map(str, date))+" "+flag
-        time = self.seper("%02d", *time)
-        ra = self.seper("%04.1f", *ra)
-        dec = self.seper("%04.1f", *dec)
-        az = self.seper("%04.1f", *az)
-        zen = self.seper("%04.1f", *zen)
+        time = self.seper("%02d", *val.time)
+        ra = self.seper("%04.1f", *val.ra)
+        dec = self.seper("%04.1f", *val.dec)
+        az = self.seper("%04.1f", *val.az)
+        zen = self.seper("%04.1f", *val.zen)
         return "%3d %10s %15s %8s %4d %11s %11s %11s %10s %s" % (int(num),
-                date, obj, time, exp, ra, dec, az, zen, dateobs)
+                date, val.obj, time, val.exp, ra, dec, az, zen, val.dateobs)
