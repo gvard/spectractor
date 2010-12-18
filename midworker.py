@@ -242,7 +242,7 @@ class MidWorker:
         midas.writeKeyw("log/i/4/1", "0")
         return i, j
 
-    def savebdf(self, name, bdf_pth, wridesc=True):
+    def savebdf(self, name, bdf_pth, wridesc=False):
         """Save a MIDAS bdf image, using existing FITS file
         Also write descriptors, load it on display
         """
@@ -295,6 +295,7 @@ class MidWorker:
         if self.usedisp:
             scale = ",".join((str(i), str(j), 'max'))
             midas.loadImag(cosm, "scale="+scale, "cuts=0,1")
+        return resnam
 
     def cycle(self, beg, end, plt, fcat=False, pfix=""):
         k = True
@@ -375,6 +376,13 @@ class MidWorker:
                     self.loima(nameo)
                 midas.copyDd(bnam, "*,3", nameo)
                 os.remove(bnam+'.'+self.ext)
+    def wridesc(self, name, key="ident", typ="", val=""):
+        """Wrapper for WRITE/DESCR MIDAS routine. Also read/desc will be made"""
+        midas.writeDesc(name, key+typ, val)
+        midas.readDesc(name, key)
+
+    def bye(self):
+        midas.bye()
 
 
 class Preparer(MidWorker, Logger):
@@ -480,10 +488,9 @@ class Preparer(MidWorker, Logger):
                 shutil.move(file_pth, self.dest_dir)
             if file_pth in self.Lg.flats:
                 continue
-            elif file_pth in self.Lg.calib:
-                self.mw.filtcosm(newname, cosm="c"+num)
-                continue
             self.mw.savebdf(newname, "l"+num+"d.bdf")
+            if file_pth in self.Lg.calib:
+                self.mw.filtcosm("l"+num+"d.bdf", ns=4, cosm="c"+num)
 
     def crebias(self, biasname="bias", files=None, filmove=True, log=True):
         """Average bias frames with crebias Midworker method"""
@@ -504,7 +511,8 @@ class Preparer(MidWorker, Logger):
         """
         if self.Lg.flats:
             self.mw.creflat(self.Lg.flats.values(), flatname=flatname)
-            self.mw.filtcosm(flatname)
+            fname = self.mw.filtcosm(flatname)
+            self.mw.wridesc(fname, key="ident", val="FlatField")
 
     def processdata(self, curfts, hilim=600):
         """Process image data: substract bias, crop, rotate, mask bad rows"""
