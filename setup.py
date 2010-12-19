@@ -35,7 +35,8 @@ setup(name='spectractor',
     package_dir={'spectractor': ''},
     packages=['spectractor'],
     scripts=[os.path.join('scripts', 'liner.py'),
-             os.path.join('scripts', 'preparer.py')],
+             os.path.join('scripts', 'preparer.py'),
+             os.path.join('scripts', 'flatspline.py')],
     ext_modules=spext
     #py_modules=['spectractor', 'serve'] + midworker_mod,
     )
