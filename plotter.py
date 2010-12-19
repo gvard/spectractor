@@ -101,6 +101,7 @@ class Flatter(Spliner):
         self.nord, self.end = len(self.data), len(self.data[0])
         self.xlims = (0, self.end)
         # Initialization
+        self.outccm = {}
         self.Sl = Spliner(0, self.end, smooth=None, spk=spk)
         self.out = np.ones((self.nord, self.end))
         self.init_prm()
@@ -141,6 +142,7 @@ class Flatter(Spliner):
         return self.Sl.splpl(xfl, yfl)
 
     def plotdiv(self):
+        self.outccm[self.i+1] = self.coords
         self.clear()
         self.dat = self.dat / self.splfit
         self.isdiv = True
