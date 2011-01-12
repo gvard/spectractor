@@ -724,7 +724,7 @@ class Spectractor(Spliner):
         else:
             return self.llam, self.hlam
 
-    def collect_chains(self, lam, width=4, shift=0, ish=0, wcut=None):
+    def collect_chains(self, lam, width=4, shift=0, divs=None, ish=0, wcut=None):
         """Collect spectra chains containing given wavelength in a given
         spectral window.
         @param lam: wavelength of interest
@@ -744,7 +744,7 @@ class Spectractor(Spliner):
             self.wcut = wcut
         self.llam = lam - width - shift
         self.hlam = lam + width - shift
-        self.runner(lam=lam, ish=ish)
+        self.runner(lam=lam, divs=divs, ish=ish)
         return self.fdata
 
     def get_chains(self, lam, llim=None, hlim=None, divs=None, ish=0, wcut=None):
