@@ -539,7 +539,7 @@ class Spliner:
         except ValueError, err:
             print >> sys.stderr, "ValueError in flat_order:", err,
             print >> sys.stderr, "Maybe you should sort input arrays."
-            raise SystemExit
+            return
         return order / splfit + intlev
 
 
@@ -654,6 +654,8 @@ class Spectractor(Spliner):
                         intlev=ish)
             # The same:
             #dats = self.Spl.flat_order(data[i], pols, intlev=ish)[beg:end]
+            if dats is None:
+                continue
             if lam and self.vscl:
                 # Convert to radial velocity scale: v = C * deltalam / lam
                 lams = (lams - lam) * _C / lam
