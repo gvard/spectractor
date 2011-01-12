@@ -45,7 +45,17 @@ class Clicker:
         self.plcm.append(self.splt.plot(x, y, '+', c=self.clr, ms=10)[0])
         plt.draw()
 
-    def delplt(self, ind):
+    def findnearest(self, x):
+        """z = np.where(np.array(self.plcm)-x < r)[0][-1]
+        """
+        inds = {}
+        for i, crd in enumerate(self.coords):
+            inds[abs(crd[0] - x)] = i
+        return inds[min(inds.keys())]
+
+    def delplt(self, ind=None, x=None):
+        if ind is None and x is not None:
+            ind = self.findnearest(x)
         self.plcm[ind].remove()
         del self.plcm[ind]
         del self.coords[ind]
@@ -71,7 +81,12 @@ class Clicker:
                 and self.zw:
             self.zoom(evnt)
         elif evnt.name == self.kpe and evnt.key == 'd' and len(self.coords):
-            self.delplt(-1)
+            x, y = self.getcoords(evnt)
+            self.delplt(x=x)
+        elif evnt.name == self.kpe and evnt.key == 'm' and len(self.coords):
+            x, y = self.getcoords(evnt)
+            self.delplt(x=x)
+            self.addpnt(evnt)
         elif evnt.name == self.kpe and evnt.key == 'q':
             plt.close()
 
@@ -158,7 +173,15 @@ class Flatter(Spliner):
         [plelm.remove() for plelm in self.cmpl]
         self.init_prm()
 
-    def delplt(self, ind):
+    def findnearest(self, x):
+        inds = {}
+        for i, crd in enumerate(self.coords):
+            inds[abs(crd[0] - x)] = i
+        return inds[min(inds.keys())]
+
+    def delplt(self, ind=None, x=None):
+        if ind is None and x is not None:
+            ind = self.findnearest(x)
         self.cmpl[ind].remove()
         del self.cmpl[ind]
         del self.coords[ind]
@@ -218,7 +241,8 @@ class Flatter(Spliner):
         elif evnt.name == self.kpe and evnt.key == 'f9':
             self.plotdiv()
         elif evnt.name == self.kpe and evnt.key == 'd' and len(self.coords):
-            self.delplt(-1)
+            x, y = self.getcoords(evnt)
+            self.delplt(x=x)
         elif evnt.name == self.kpe and evnt.key == 'D' and len(self.coords):
             self.delplt(0)
         elif evnt.name == self.kpe and evnt.key == 'n':
