@@ -573,7 +573,7 @@ class Spectractor(Spliner):
         self.llam, self.hlam = None, None
         self.vshift = True
         self.wcut = 1
-        self.mkey = lambda sp, x: ((sp.id, sp.flag, sp.pth, sp.Vr, sp.jd, x))
+        self.mkey = lambda s, x, l: ((s.id, s.flag, s.pth, s.Vr, s.jd, x, l))
         self.Spl = Spliner()
 
     def get_raw(self, data_pth, fds_pth, pp_pth):
@@ -659,7 +659,7 @@ class Spectractor(Spliner):
             if lam and self.vscl:
                 # Convert to radial velocity scale: v = C * deltalam / lam
                 lams = (lams - lam) * _C / lam
-            key = self.mkey(opts, i)
+            key = self.mkey(opts, i, lam)
             self.filler(key, lams, dats)
 
     def shcut_lams(self, lams, shift=0, cuts=None):
