@@ -607,6 +607,7 @@ class Spectractor(Spliner):
         self.llam, self.hlam = None, None
         self.vshift = True
         self.wcut = 1
+        self.ccmtxt = False
         self.mkey = lambda s, x, l: ((s.id, s.flag, s.pth, s.Vr, s.jd, x, l))
         self.Spl = Spliner()
 
@@ -631,7 +632,10 @@ class Spectractor(Spliner):
             print >> sys.stderr, "Sorry, unknown data file format in", data_pth
             return None, None, None
         fds = read_fds(fds_pth, self.nx, self.ny)
-        polys_dct = read_ccmtxt(pp_pth)
+        if self.ccmtxt:
+            polys_dct = read_ccmtxt(pp_pth)
+        else:
+            polys_dct = read_ccm(pp_pth)
         return data, fds, polys_dct
 
     def filler(self, key, lams, dats):
