@@ -276,6 +276,40 @@ def write_fds(data, fds_pth, verbose=False):
     fds.close()
 
 
+def read_ccm(ccm_pth, verbose=False):
+    """Read .ccm file with dispersion curves.
+    @return: dictionary with points for spline fitting. keys are number
+    of orders, values are lists of tuples with points
+    """
+    fsz = 4 #calcsize('f')
+    ccm = open(ccm_pth, 'rb')
+    ord_num = unpack('i', ccm.read(fsz))[0]
+    if verbose:
+        print ccm_pth, "has", ord_num, "orders"
+    data = {}
+    ordls = []
+    # number of points in curve for each order
+    ordls = map(int, unpack("f"*ord_num, ccm.read(fsz*ord_num)))
+    for ornum, orlen in enumerate(ordls):
+        if orlen:
+            data[ornum+1] = []
+    maxo = max(ordls)
+    lastnum = np.where(np.array(ordls) == maxo)[0][-1] + 1
+    for i in xrange(maxo-1):
+        for j in xrange(ord_num):
+            dot = unpack('ff', ccm.read(fsz*2))
+            if dot[0] and len(data[j+1]) != ordls[j]:
+                data[j+1].append(dot)
+    for j in range(ord_num)[:lastnum]:
+        dot = unpack('ff', ccm.read(fsz*2))
+        if dot[0] and len(data[j+1]) != ordls[j]:
+            data[j+1].append(dot)
+    #datlen = os.path.getsize(ccm_pth)
+    #endpos = ccm.tell()
+    ccm.close()
+    return data
+
+
 def read_ccmtxt(ccm_pth):
     """Read *.ccm.txt files. This files creates by Dech 7.4.x.
     ccm.txt files is simple way to represent a continuum polynome for each
