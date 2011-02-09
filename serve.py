@@ -77,7 +77,7 @@ class Walker:
     def __init__(self, args, exts=("200", "fds"), namrxp=".*", verbose=False):
         self.files_dct = {}
         self.workdirs = []
-        self.path_set, self.spath_set = set(), set()
+        self.path_set, self.spath_set = set(), []
         self.verbose = verbose
         # rexp_spec contains 3 groups: night number, spectrum number and flag.
         self.rexp_spec = "^[a-z_]{0,3}(\d{3})(\d{1,3})[-_]?([a-z_\-]*).*\."
@@ -171,7 +171,8 @@ class Walker:
             print >> sys.stderr, "No", ext, "files in path!"
         return self.path_set
 
-    def select_spectra(self, journal, ext='fits', iflag=None, splitnig=False):
+    def select_spectra(self, journal, ext='fits', iflag=None, splitnig=False,
+                ccmtxt=False):
         """Select data, get ID ('night') and flag from filename, collect paths.
         Here we assume, that file name contains information about ID
         (night number, number of spectrum) and flag. Others will be broken
@@ -210,9 +211,12 @@ class Walker:
                 continue
             jy, mjd, spc, lwv, hwv, Vr, sn, fdsnam = self.journal[night][:8]
             #jy, mjd, spc, lwv, hwv, Vr, sn, fdsnum = self.journal[night]
-            pls_pth = os.path.splitext(path)[0]+'.ccm.txt'
+            if ccmtxt:
+                pls_pth = os.path.splitext(path)[0]+'.ccm.txt'
+            else:
+                pls_pth = os.path.splitext(path)[0]+'.ccm'
             if not os.path.isfile(pls_pth):
-                print >> sys.stderr, "Exclude", path+": no ccm.txt file"
+                print >> sys.stderr, "Exclude", path+": no ccm file"
                 continue
             fds_pth = os.path.join(os.path.dirname(path), str(fdsnam)+'.fds')
             if not os.path.isfile(fds_pth):
@@ -223,7 +227,8 @@ class Walker:
             if self.verbose:
                 print "Append", night, flag, "with shift", Vr
             params = Sp(night, flag, path, fds_pth, pls_pth, Vr, sn, jy, mjd)
-            self.spath_set.add(params)
+            self.spath_set.append(params)
+            #self.spath_set.add(params)
         return self.spath_set
 
     def mk_dummy_journal(self, rexp, files):
