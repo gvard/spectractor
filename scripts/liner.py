@@ -12,7 +12,7 @@ Some optical line wavelengths:
 "DIB": [5780.55, 5796.99, 6195.99, 6203.06, 6613.63],
 "Si3": [4552.622, 4567.84, 4574.757, 5739.734],
 
-Example usege:
+Example usage:
 liner.py ./ -l 4861.32,6562.8 -e 100,200
 liner.py ./ -l 5889.951,5895.923 -i l,n -n 60
 """
